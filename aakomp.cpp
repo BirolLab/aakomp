@@ -168,7 +168,7 @@ void process_hashes(
       found = true;
     }
   }
-  
+
   if (found) {
     for (const auto &id_pos : temp_ID_pos) {
       auto demasked = id_pos & mi_bf.ANTI_MASK;
@@ -211,26 +211,7 @@ void process_hashes(
     }
     id_set.insert(new_id_set.begin(), new_id_set.end());
 
-  } /*else {
-    bool saturated = true;
-    for (const auto &id_pos : temp_ID_pos) {
-      if (id_pos < mi_bf.MASK) {
-        saturated = false;
-        break;
-      }
-    }
-
-    if (!saturated) {
-      extend_block = false;
-    } else {
-      extend_block = true;
-      for (auto &[id, pos_set] : id_to_pos_set) {
-        if (!pos_set.empty()) {
-          pos_set.insert(*pos_set.rbegin() + 1);
-        }
-      }
-    }
-  }*/
+  } 
   // determine saturation
   bool saturated = true;
   for (const auto &id_pos : temp_ID_pos) {
@@ -549,48 +530,6 @@ void process_ori(const btllib::SeqReader::Record& record,
     std::unordered_map<uint32_t, size_t> id_to_count;
     std::unordered_set<uint32_t> id_set;
     size_t block_id = 0;
-    /*if (debug_flag){
-      btllib::AAHash aahash_debug(sixframed_xlated_proteins[ori_frame], hash_num, kmer_size, 1);
-      btllib::AAHash aahash2_debug(sixframed_xlated_proteins[ori_frame], hash_num, kmer_size, 2);
-      btllib::AAHash aahash3_debug(sixframed_xlated_proteins[ori_frame], hash_num, kmer_size, 3);
-      aahash_debug.roll(); aahash2_debug.roll(); aahash3_debug.roll();
-      std::cerr << "Debugging Hash Existence:" << std::endl;
-      std::cerr << "ori: " << ori << std::endl;
-      for (size_t i = 0; i < 5; ++i){
-        std::cerr << "pos: ";
-        if (!mi_bf.bv_contains(aahash_debug.hashes())) {
-          std::cerr << i << " not hit" << std::endl;
-          aahash_debug.roll(); aahash2_debug.roll(); aahash3_debug.roll();
-          continue;
-        }
-        std::cerr << i << " hit" << std::endl;
-
-
-        auto temp_ID_pos = mi_bf.get_id(aahash_debug.hashes());
-        auto temp_ID_pos2 = mi_bf.get_id(aahash2_debug.hashes());
-        auto temp_ID_pos3 = mi_bf.get_id(aahash3_debug.hashes());
-
-        for (size_t j = 0;  j < kmer_size; j++) {
-
-          std::cerr << "lvl1" << std::endl;
-          std::cerr << "hash " << j << " name" <<  miBf_ID_to_seq_ID_and_len[(temp_ID_pos[j] & mi_bf.ANTI_MASK ) >> HASH_ID_SHIFT].first<< std::endl;
-
-        }
-        for (size_t j = 0;  j < kmer_size; j++) {
-          std::cerr << "lvl2" << std::endl;
-          std::cerr << "hash " << j << " name" <<  miBf_ID_to_seq_ID_and_len[(temp_ID_pos2[j] & mi_bf.ANTI_MASK ) >> HASH_ID_SHIFT].first<< std::endl;
-
-        }
-        for (size_t j = 0;  j < kmer_size; j++) {
-          std::cerr << "lvl3" << std::endl;
-          std::cerr << "hash " << j << " name" <<  miBf_ID_to_seq_ID_and_len[(temp_ID_pos3[j] & mi_bf.ANTI_MASK ) >> HASH_ID_SHIFT].first<< std::endl;
-
-        }
-        
-
-        aahash_debug.roll(); aahash2_debug.roll(); aahash3_debug.roll();
-      }
-    }*/
     while (aahash.get_pos() != std::numeric_limits<size_t>::max()) {
       while (!explore_frame(mi_bf, aahash, miBf_IDs_snapshot, miBf_pos_snapshot, id_to_count) &&
              aahash.get_pos() != std::numeric_limits<size_t>::max()) {
@@ -636,16 +575,8 @@ void process_ori(const btllib::SeqReader::Record& record,
       std::unordered_map<uint32_t, std::set<uint32_t>> id_to_pos_set;
       for (size_t i = 0; i < miBf_IDs_snapshot.size(); ++i) {
         for (size_t j = 0; j < miBf_IDs_snapshot[i].size(); ++j) {
-          /*if (debug_flag) {
-            std::cerr << "Debugging snapshot detection" << std::endl;
-            std::cerr << "testing: " << miBf_ID_to_seq_ID_and_len[miBf_IDs_snapshot[i][j]].first << std::endl;
-          }*/
           if (id_set.count(miBf_IDs_snapshot[i][j])){
             id_to_pos_set[miBf_IDs_snapshot[i][j]].insert(miBf_pos_snapshot[i][j]);
-            /*if (debug_flag) {
-            std::cerr << "Found" << std::endl;
-            std::cerr << "inserting: " << miBf_pos_snapshot[i][j] << std::endl;
-            }*/
             }
 
         }
@@ -661,100 +592,7 @@ void process_ori(const btllib::SeqReader::Record& record,
         if (debug_flag) {
           std::cerr << "Testing extension on pos: " << aahash.get_pos() << std::endl; 
         }
-/*bool has_prio1 = false, has_prio2 = false, has_prio3 = false;
 
-// Check each level for prio_ids
-std::vector<uint64_t> chosen_temp_ID_pos;
-
-if (mi_bf.bv_contains(aahash.hashes())) {
-  const auto &temp_ID_pos = mi_bf.get_id(aahash.hashes());
-  for (const auto &id_pos : temp_ID_pos) {
-    auto demasked = id_pos & mi_bf.ANTI_MASK;
-    if (prio_ids.count(demasked >> HASH_ID_SHIFT)) {
-      chosen_temp_ID_pos = temp_ID_pos;
-      has_prio1 = true;
-      break;
-    }
-  }
-}
-if (!has_prio1 && mi_bf.bv_contains(aahash2.hashes())) {
-  const auto &temp_ID_pos = mi_bf.get_id(aahash2.hashes());
-  for (const auto &id_pos : temp_ID_pos) {
-    auto demasked = id_pos & mi_bf.ANTI_MASK;
-    if (prio_ids.count(demasked >> HASH_ID_SHIFT)) {
-      chosen_temp_ID_pos = temp_ID_pos;
-      has_prio2 = true;
-      break;
-    }
-  }
-}
-if (!has_prio1 && !has_prio2 && mi_bf.bv_contains(aahash3.hashes())) {
-  const auto &temp_ID_pos = mi_bf.get_id(aahash3.hashes());
-  for (const auto &id_pos : temp_ID_pos) {
-    auto demasked = id_pos & mi_bf.ANTI_MASK;
-    if (prio_ids.count(demasked >> HASH_ID_SHIFT)) {
-      chosen_temp_ID_pos = temp_ID_pos;
-      has_prio3 = true;
-      break;
-    }
-  }
-}
-if (has_prio1) {
-  if (debug_flag) std::cerr << "Level 1 (prio) Found" << std::endl;
-  process_hashes(chosen_temp_ID_pos, id_set, id_to_pos_set, extend_block, ids_vec, temp_pos_vec, mi_bf);
-} else if (has_prio2) {
-  if (debug_flag) std::cerr << "Level 2 (prio) Found" << std::endl;
-  process_hashes(chosen_temp_ID_pos, id_set, id_to_pos_set, extend_block, ids_vec, temp_pos_vec, mi_bf);
-} else if (has_prio3) {
-  if (debug_flag) std::cerr << "Level 3 (prio) Found" << std::endl;
-  process_hashes(chosen_temp_ID_pos, id_set, id_to_pos_set, extend_block, ids_vec, temp_pos_vec, mi_bf);
-} else {
-          if (mi_bf.bv_contains(aahash.hashes())) {
-            if (debug_flag) {
-              std::cerr << "Level 1 Found" << std::endl;
-              const std::vector<uint64_t> temp_ID_pos = mi_bf.get_id(aahash.hashes());
-              std::cerr << "ids: ";
-              for (const auto &id_pos : temp_ID_pos) {
-                auto demasked = id_pos & mi_bf.ANTI_MASK;
-                std::cerr << (demasked >> HASH_ID_SHIFT) << " ";
-                }
-              std::cerr << std::endl;
-              }
-            
-            process_hashes(mi_bf.get_id(aahash.hashes()), id_set, id_to_pos_set, extend_block, ids_vec, temp_pos_vec, mi_bf);
-          } else if (mi_bf.bv_contains(aahash2.hashes())) {
-            if (debug_flag) {
-              std::cerr << "Level 2 Found" << std::endl;
-              std::cerr << "ids: ";
-              const std::vector<uint64_t> &temp_ID_pos = mi_bf.get_id(aahash2.hashes());
-              for (const auto &id_pos : temp_ID_pos) {
-                auto demasked = id_pos & mi_bf.ANTI_MASK;
-                std::cerr << (demasked >> HASH_ID_SHIFT) << " ";
-                }
-              std::cerr << std::endl;
-              }
-            
-            process_hashes(mi_bf.get_id(aahash2.hashes()), id_set, id_to_pos_set, extend_block, ids_vec, temp_pos_vec, mi_bf);
-          } else if (mi_bf.bv_contains(aahash3.hashes())) {
-            if (debug_flag) {
-              std::cerr << "Level 3 Found" << std::endl; 
-              std::cerr << "ids: ";
-              const std::vector<uint64_t> &temp_ID_pos = mi_bf.get_id(aahash3.hashes());
-              for (const auto &id_pos : temp_ID_pos) {
-                auto demasked = id_pos & mi_bf.ANTI_MASK;
-                std::cerr << (demasked >> HASH_ID_SHIFT) << " ";
-              }
-              std::cerr << std::endl;
-            }
-            
-            process_hashes(mi_bf.get_id(aahash3.hashes()), id_set, id_to_pos_set, extend_block, ids_vec, temp_pos_vec, mi_bf);
-          } else {
-            if (debug_flag) {
-              std::cerr << "Missing" << std::endl; 
-            }
-            extend_block = false;
-          }
-}*/
 
 bool has_prio1 = false, has_prio2 = false, has_prio3 = false;
 bool exist1 = false, exist2 = false, exist3 = false;
