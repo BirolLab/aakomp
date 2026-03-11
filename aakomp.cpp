@@ -14,7 +14,6 @@
 #include <unordered_set>
 #include <vector>
 
-
 #include <Sequence/Translate.hpp>
 #include <argparse/argparse.hpp>
 #include <boost/math/distributions/empirical_cumulative_distribution_function.hpp>
@@ -33,17 +32,22 @@ static constexpr size_t FRAMES = 3;
 static constexpr size_t ORIENTATIONS = 2;
 static constexpr size_t MINIMUM_CONSECUTIVE_HIT = 2;
 
-struct FrameBlock {
+struct FrameBlock
+{
   size_t frame;
   size_t block_id;
   size_t query_start_in_prot_space;
 
   FrameBlock(size_t frame, size_t block_id, size_t query_start)
-      : frame(frame), block_id(block_id),
-        query_start_in_prot_space(query_start) {}
+    : frame(frame)
+    , block_id(block_id)
+    , query_start_in_prot_space(query_start)
+  {
+  }
 };
 
-struct GFFEntry {
+struct GFFEntry
+{
   std::string query_name;
   size_t hit_pos_start;
   size_t hit_pos_end;
@@ -51,14 +55,26 @@ struct GFFEntry {
   std::string strand;
   std::string hit_name;
 
-  GFFEntry(const std::string &query, size_t start, size_t end, double score,
-           const std::string &strand, const std::string &hit)
-      : query_name(query), hit_pos_start(start), hit_pos_end(end), score(score),
-        strand(strand), hit_name(hit) {}
+  GFFEntry(const std::string& query,
+           size_t start,
+           size_t end,
+           double score,
+           const std::string& strand,
+           const std::string& hit)
+    : query_name(query)
+    , hit_pos_start(start)
+    , hit_pos_end(end)
+    , score(score)
+    , strand(strand)
+    , hit_name(hit)
+  {
+  }
 };
 
-struct GFFEntryComparator {
-  bool operator()(const GFFEntry &lhs, const GFFEntry &rhs) const noexcept {
+struct GFFEntryComparator
+{
+  bool operator()(const GFFEntry& lhs, const GFFEntry& rhs) const noexcept
+  {
     if (lhs.query_name != rhs.query_name)
       return lhs.query_name < rhs.query_name;
     if (lhs.hit_pos_start != rhs.hit_pos_start)
@@ -67,56 +83,66 @@ struct GFFEntryComparator {
   }
 };
 
-struct FrameBlockComparator {
-  bool operator()(const FrameBlock &a, const FrameBlock &b) const noexcept {
+struct FrameBlockComparator
+{
+  bool operator()(const FrameBlock& a, const FrameBlock& b) const noexcept
+  {
     return a.query_start_in_prot_space < b.query_start_in_prot_space;
   }
 };
 
-  struct completeness_struct {
-    size_t complete_copies = 0;
-    size_t incomplete_copies = 0;
-    size_t expected_kmer_counts = 0;
-    size_t highest_adjusted_kmer_counts = 0;
-  };
+struct completeness_struct
+{
+  size_t complete_copies = 0;
+  size_t incomplete_copies = 0;
+  size_t expected_kmer_counts = 0;
+  size_t highest_adjusted_kmer_counts = 0;
+};
 
-bool has_enough_sequence_entries(const std::string& input_file, size_t threads) {
-    constexpr size_t BUFFER_SIZE = 1 << 16;
-    int fd = open(input_file.c_str(), O_RDONLY);
-    if (fd < 0) return false;
-
-    std::vector<char> buffer(BUFFER_SIZE);
-    ssize_t bytesRead;
-    size_t count = 0;
-
-    while ((bytesRead = read(fd, buffer.data(), buffer.size())) > 0) {
-        for (ssize_t i = 0; i < bytesRead; ++i) {
-            if (buffer[i] == '>') {
-                ++count;
-                if (count > threads) {
-                    close(fd);
-                    return true;
-                }
-            }
-        }
-    }
-
-    close(fd);
+bool
+has_enough_sequence_entries(const std::string& input_file, size_t threads)
+{
+  constexpr size_t BUFFER_SIZE = 1 << 16;
+  int fd = open(input_file.c_str(), O_RDONLY);
+  if (fd < 0)
     return false;
+
+  std::vector<char> buffer(BUFFER_SIZE);
+  ssize_t bytesRead;
+  size_t count = 0;
+
+  while ((bytesRead = read(fd, buffer.data(), buffer.size())) > 0) {
+    for (ssize_t i = 0; i < bytesRead; ++i) {
+      if (buffer[i] == '>') {
+        ++count;
+        if (count > threads) {
+          close(fd);
+          return true;
+        }
+      }
+    }
+  }
+
+  close(fd);
+  return false;
 }
 
-size_t look_ahead(
-    const std::vector<std::reference_wrapper<const FrameBlock>> &blocks,
-    size_t current_index, size_t query_end,
-    const std::unordered_map<
-        size_t, std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>>
-        &frame_index,
-    size_t offset, size_t current_span) {
+size_t
+look_ahead(
+  const std::vector<std::reference_wrapper<const FrameBlock>>& blocks,
+  size_t current_index,
+  size_t query_end,
+  const std::unordered_map<
+    size_t,
+    std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>>& frame_index,
+  size_t offset,
+  size_t current_span)
+{
   if (current_index + 1 >= blocks.size()) {
     return 0;
   }
 
-  const FrameBlock &next = blocks[current_index + 1].get();
+  const FrameBlock& next = blocks[current_index + 1].get();
   auto next_block_id = next.block_id;
   auto next_frame = next.frame;
   size_t next_block_start = frame_index.at(next_frame).at(next_block_id).first;
@@ -125,14 +151,14 @@ size_t look_ahead(
   if (query_end < next_block_start) {
     return 0;
   }
-  size_t next_block_span =  next_block_end - next_block_start;
+  size_t next_block_span = next_block_end - next_block_start;
 
   for (size_t i = 2; i <= offset; ++i) {
     if (current_index + i >= blocks.size()) {
       return 0;
     }
 
-    const FrameBlock &block = blocks[current_index + i].get();
+    const FrameBlock& block = blocks[current_index + i].get();
     auto block_id = block.block_id;
     auto frame = block.frame;
     size_t future_start = frame_index.at(frame).at(block_id).first;
@@ -140,7 +166,9 @@ size_t look_ahead(
 
     size_t future_span = future_end - future_start;
 
-    if (query_end < future_start && (current_span + future_span > next_block_span + future_span || next_block_end > future_start)) {
+    if (query_end < future_start &&
+        (current_span + future_span > next_block_span + future_span ||
+         next_block_end > future_start)) {
       return i - 1;
     }
   }
@@ -148,19 +176,20 @@ size_t look_ahead(
   return 0;
 }
 
-void process_hashes(
-    const std::vector<uint64_t> &temp_ID_pos,
-    std::unordered_set<uint32_t> &id_set,
-    std::unordered_map<uint32_t, std::set<uint32_t>> &id_to_pos_set,
-    bool &extend_block, std::vector<uint32_t> &ids_vec,
-    std::vector<uint32_t> &temp_pos_vec,
-    const btllib::MIBloomFilter<uint64_t> &mi_bf) {
-
+void
+process_hashes(const std::vector<uint64_t>& temp_ID_pos,
+               std::unordered_set<uint32_t>& id_set,
+               std::unordered_map<uint32_t, std::set<uint32_t>>& id_to_pos_set,
+               bool& extend_block,
+               std::vector<uint32_t>& ids_vec,
+               std::vector<uint32_t>& temp_pos_vec,
+               const btllib::MIBloomFilter<uint64_t>& mi_bf)
+{
 
   std::unordered_set<uint32_t> id_set_hit;
   bool found = false;
 
-  for (const auto &id_pos : temp_ID_pos) {
+  for (const auto& id_pos : temp_ID_pos) {
     auto demasked = id_pos & mi_bf.ANTI_MASK;
     uint32_t id = demasked >> HASH_ID_SHIFT;
     id_set_hit.insert(id);
@@ -170,7 +199,7 @@ void process_hashes(
   }
 
   if (found) {
-    for (const auto &id_pos : temp_ID_pos) {
+    for (const auto& id_pos : temp_ID_pos) {
       auto demasked = id_pos & mi_bf.ANTI_MASK;
       ids_vec.push_back(demasked >> HASH_ID_SHIFT);
       temp_pos_vec.push_back(demasked & HASH_POS_MASK);
@@ -187,7 +216,7 @@ void process_hashes(
       uint32_t pos = temp_pos_vec[i];
 
       if (id_set.count(id)) {
-        const auto &pos_set = id_to_pos_set[id];
+        const auto& pos_set = id_to_pos_set[id];
         if (!pos_set.empty() && pos == *pos_set.rbegin() + 1) {
           id_to_pos_set[id].insert(pos);
         }
@@ -198,7 +227,7 @@ void process_hashes(
     }
 
     std::unordered_set<uint32_t> new_id_set(new_ids.begin(), new_ids.end());
-    for (const auto &id : new_id_set) {
+    for (const auto& id : new_id_set) {
       std::set<uint32_t> pos_set;
       for (size_t i = 0; i < new_ids.size(); ++i) {
         if (new_ids[i] == id) {
@@ -210,11 +239,10 @@ void process_hashes(
       }
     }
     id_set.insert(new_id_set.begin(), new_id_set.end());
-
-  } 
+  }
 
   bool saturated = true;
-  for (const auto &id_pos : temp_ID_pos) {
+  for (const auto& id_pos : temp_ID_pos) {
     if (id_pos < mi_bf.MASK) {
       saturated = false;
       break;
@@ -222,8 +250,8 @@ void process_hashes(
   }
   if (saturated) {
     extend_block = true;
-    for (auto &[id, pos_set] : id_to_pos_set) {
-      if (id_set_hit.count(id) == 0){
+    for (auto& [id, pos_set] : id_to_pos_set) {
+      if (id_set_hit.count(id) == 0) {
         if (!pos_set.empty()) {
           pos_set.insert(*pos_set.rbegin() + 1);
         }
@@ -236,10 +264,11 @@ void process_hashes(
       extend_block = false;
     }
   }
-
 }
 
-std::vector<std::string> sixframe_translate(const std::string &dna) {
+std::vector<std::string>
+sixframe_translate(const std::string& dna)
+{
   std::vector<std::string> protein;
   protein.reserve(6);
 
@@ -251,24 +280,32 @@ std::vector<std::string> sixframe_translate(const std::string &dna) {
 
   for (size_t frame = 0; frame < FRAMES; ++frame) {
     protein.push_back(
-        Sequence::Translate(rev_dna.begin() + frame, rev_dna.end()));
+      Sequence::Translate(rev_dna.begin() + frame, rev_dna.end()));
   }
 
   return protein;
 }
 
-void fill_in_gaps(
-    std::vector<std::tuple<size_t, size_t>> &start_end_pos_vec,
-    std::vector<std::tuple<size_t, size_t>> &start_end_pos_in_tar_space_vec,
-    size_t &adjusted_kmer_counts, size_t hash_num, size_t rescue_kmer_size,
-    const std::vector<std::string> &sixframed_xlated_proteins, size_t ori,
-    size_t kmer_size, uint32_t miBf_ID, const std::string &db_path,
-    const std::string &mibf_prefix) {
+void
+fill_in_gaps(
+  std::vector<std::tuple<size_t, size_t>>& start_end_pos_vec,
+  std::vector<std::tuple<size_t, size_t>>& start_end_pos_in_tar_space_vec,
+  size_t& adjusted_kmer_counts,
+  size_t hash_num,
+  size_t rescue_kmer_size,
+  const std::vector<std::string>& sixframed_xlated_proteins,
+  size_t ori,
+  size_t kmer_size,
+  uint32_t miBf_ID,
+  const std::string& db_path,
+  const std::string& mibf_prefix)
+{
   const size_t MIN_KMER_CHAIN_GAP = rescue_kmer_size - 1;
   const size_t TARGET_GAP_ADJUSTMENT = rescue_kmer_size + 1;
 
-  std::sort(start_end_pos_vec.begin(), start_end_pos_vec.end(),
-            [](const auto &a, const auto &b) {
+  std::sort(start_end_pos_vec.begin(),
+            start_end_pos_vec.end(),
+            [](const auto& a, const auto& b) {
               return std::get<0>(a) < std::get<0>(b);
             });
 
@@ -291,7 +328,7 @@ void fill_in_gaps(
 
   for (size_t i = 0; i + 1 < start_end_pos_in_tar_space_vec.size(); ++i) {
     size_t curr_end =
-        std::get<1>(start_end_pos_in_tar_space_vec[i]) + TARGET_GAP_ADJUSTMENT;
+      std::get<1>(start_end_pos_in_tar_space_vec[i]) + TARGET_GAP_ADJUSTMENT;
     size_t next_start = std::get<0>(start_end_pos_in_tar_space_vec[i + 1]);
     if (next_start > curr_end + kmer_size) {
       gap_in_tar_space_vec.emplace_back(curr_end, next_start);
@@ -306,7 +343,7 @@ void fill_in_gaps(
   std::vector<std::unordered_set<size_t>> gap_index_sets;
   gap_index_sets.reserve(gap_in_tar_space_vec.size());
 
-  for (const auto &gap : gap_in_tar_space_vec) {
+  for (const auto& gap : gap_in_tar_space_vec) {
     std::unordered_set<size_t> index_set;
     for (size_t i = std::get<0>(gap); i < std::get<1>(gap); ++i) {
       index_set.insert(i);
@@ -318,15 +355,15 @@ void fill_in_gaps(
     return;
 
   std::string small_mibf_path =
-      db_path + "/" + mibf_prefix + "." + std::to_string(miBf_ID) + ".mibf";
+    db_path + "/" + mibf_prefix + "." + std::to_string(miBf_ID) + ".mibf";
   btllib::MIBloomFilter<uint64_t> small_mi_bf(small_mibf_path);
 
   std::vector<std::vector<std::tuple<size_t, size_t>>>
-      kmer_pos_per_frame_and_level(FRAMES);
+    kmer_pos_per_frame_and_level(FRAMES);
 
   for (size_t frame = 0; frame < FRAMES; ++frame) {
-    const std::string &protein =
-        sixframed_xlated_proteins[frame + ori * FRAMES];
+    const std::string& protein =
+      sixframed_xlated_proteins[frame + ori * FRAMES];
     for (size_t level = 1; level <= 3; ++level) {
       for (size_t g = 0; g < gap_vec.size(); ++g) {
         if (gap_in_tar_space_vec[g] == std::make_tuple(0ul, 0ul))
@@ -334,10 +371,10 @@ void fill_in_gaps(
 
         size_t gap_start = std::get<0>(gap_vec[g]);
         size_t gap_end = std::get<1>(gap_vec[g]);
-        const auto &index_set = gap_index_sets[g];
+        const auto& index_set = gap_index_sets[g];
 
-        btllib::AAHash aahash(protein, hash_num, rescue_kmer_size, level,
-                              gap_start - 1);
+        btllib::AAHash aahash(
+          protein, hash_num, rescue_kmer_size, level, gap_start - 1);
         aahash.roll();
 
         while (aahash.get_pos() <= gap_end + 1) {
@@ -347,7 +384,7 @@ void fill_in_gaps(
               size_t pos = id_pos & HASH_POS_MASK;
               if (index_set.count(pos)) {
                 kmer_pos_per_frame_and_level[frame].emplace_back(
-                    pos, aahash.get_pos());
+                  pos, aahash.get_pos());
               }
             }
           }
@@ -362,17 +399,17 @@ void fill_in_gaps(
   all_kmers.reserve(100); // 100 is an estimate
 
   for (size_t frame = 0; frame < FRAMES; ++frame) {
-    for (const auto &kmer : kmer_pos_per_frame_and_level[frame]) {
+    for (const auto& kmer : kmer_pos_per_frame_and_level[frame]) {
       if (all_kmers_set.insert(kmer).second) {
         all_kmers.emplace_back(kmer);
       }
     }
   }
 
-  std::sort(all_kmers.begin(), all_kmers.end(),
-            [](const auto &a, const auto &b) {
-              return std::get<1>(a) < std::get<1>(b);
-            });
+  std::sort(
+    all_kmers.begin(), all_kmers.end(), [](const auto& a, const auto& b) {
+      return std::get<1>(a) < std::get<1>(b);
+    });
 
   if (!all_kmers.empty()) {
     size_t prev_pos = std::get<1>(all_kmers[0]);
@@ -380,24 +417,26 @@ void fill_in_gaps(
       size_t current_pos = std::get<1>(all_kmers[i]);
       size_t gap = current_pos - prev_pos;
       adjusted_kmer_counts +=
-          (gap > MIN_KMER_CHAIN_GAP) ? MIN_KMER_CHAIN_GAP : gap;
+        (gap > MIN_KMER_CHAIN_GAP) ? MIN_KMER_CHAIN_GAP : gap;
       prev_pos = current_pos;
     }
     adjusted_kmer_counts += MIN_KMER_CHAIN_GAP;
   }
 }
 
-bool explore_frame(btllib::MIBloomFilter<uint64_t> &mi_bf,
-                   btllib::AAHash &aahash,
-                   std::deque<std::vector<uint32_t>> &miBf_IDs_snapshot,
-                   std::deque<std::vector<uint32_t>> &miBf_pos_snapshot,
-                   std::unordered_map<uint32_t, size_t> &id_to_count) {
+bool
+explore_frame(btllib::MIBloomFilter<uint64_t>& mi_bf,
+              btllib::AAHash& aahash,
+              std::deque<std::vector<uint32_t>>& miBf_IDs_snapshot,
+              std::deque<std::vector<uint32_t>>& miBf_pos_snapshot,
+              std::unordered_map<uint32_t, size_t>& id_to_count)
+{
   std::unordered_set<uint32_t> id_set;
   if (miBf_IDs_snapshot.size() >= MINIMUM_CONSECUTIVE_HIT) {
     for (size_t i = 0; i < miBf_IDs_snapshot.front().size(); ++i) {
       id_set.insert(miBf_IDs_snapshot.front()[i]);
     }
-    for (auto &ID : id_set) {
+    for (auto& ID : id_set) {
       id_to_count[ID]--;
       if (id_to_count[ID] == 0) {
         id_to_count.erase(ID);
@@ -418,7 +457,7 @@ bool explore_frame(btllib::MIBloomFilter<uint64_t> &mi_bf,
   }
 
   auto temp_ID_pos = mi_bf.get_id(aahash.hashes());
-  for (auto &ID_pos : temp_ID_pos) {
+  for (auto& ID_pos : temp_ID_pos) {
     auto demasked_ID_pos = ID_pos & mi_bf.ANTI_MASK;
     miBf_IDs_snapshot.back().push_back(demasked_ID_pos >> HASH_ID_SHIFT);
     miBf_pos_snapshot.back().push_back(demasked_ID_pos & HASH_POS_MASK);
@@ -427,7 +466,7 @@ bool explore_frame(btllib::MIBloomFilter<uint64_t> &mi_bf,
   for (size_t j = 0; j < miBf_IDs_snapshot.back().size(); ++j) {
     id_set.insert(miBf_IDs_snapshot.back()[j]);
   }
-  for (auto &ID : id_set) {
+  for (auto& ID : id_set) {
     if (id_to_count.find(ID) == id_to_count.end()) {
       id_to_count[ID] = 1;
     } else {
@@ -442,7 +481,7 @@ bool explore_frame(btllib::MIBloomFilter<uint64_t> &mi_bf,
 
   uint32_t temp_mibf_ID = 0;
   size_t temp_max_count = 0;
-  for (auto &ID_count : id_to_count) {
+  for (auto& ID_count : id_to_count) {
     if (ID_count.second > temp_max_count) {
       temp_mibf_ID = ID_count.first;
       temp_max_count = ID_count.second;
@@ -452,13 +491,13 @@ bool explore_frame(btllib::MIBloomFilter<uint64_t> &mi_bf,
     return false;
   } else {
     std::vector<uint32_t> ids_to_check;
-    for (auto &ID_count : id_to_count) {
+    for (auto& ID_count : id_to_count) {
       if (ID_count.second == temp_max_count) {
         ids_to_check.push_back(ID_count.first);
       }
     }
 
-    for (auto &ID : ids_to_check) {
+    for (auto& ID : ids_to_check) {
       std::set<uint32_t> temp_pos_set;
       for (size_t i = 0; i < miBf_IDs_snapshot.size(); ++i) {
         for (size_t j = 0; j < miBf_IDs_snapshot[i].size(); ++j) {
@@ -471,7 +510,7 @@ bool explore_frame(btllib::MIBloomFilter<uint64_t> &mi_bf,
       uint32_t prev_pos = 0;
       size_t counter = 0;
       bool init = false;
-      for (auto &pos : temp_pos_set) {
+      for (auto& pos : temp_pos_set) {
         if (!init) {
           prev_pos = pos;
           init = true;
@@ -494,57 +533,73 @@ bool explore_frame(btllib::MIBloomFilter<uint64_t> &mi_bf,
   return false;
 }
 
-void process_ori(const btllib::SeqReader::Record& record,
-                 const std::vector<std::string>& sixframed_xlated_proteins,
-                 size_t ori,
-                 btllib::MIBloomFilter<uint64_t>& mi_bf,
-                 std::unordered_map<uint32_t, std::pair<std::string, size_t>>& miBf_ID_to_seq_ID_and_len,
-                 std::unordered_map<std::string, completeness_struct>& seq_name_to_completeness,
-                 std::set<GFFEntry, GFFEntryComparator>& pre_gff_set,
-                 std::set<GFFEntry, GFFEntryComparator>& gff_set,
-                 size_t hash_num,
-                 size_t kmer_size,
-                 size_t rescue_kmer_size,
-                 double lower_bound,
-                 size_t max_offset,
-                 const std::string& db_path_loc,
-                 const std::string& mibf_prefix,
-                 bool debug_flag) {
+void
+process_ori(const btllib::SeqReader::Record& record,
+            const std::vector<std::string>& sixframed_xlated_proteins,
+            size_t ori,
+            btllib::MIBloomFilter<uint64_t>& mi_bf,
+            std::unordered_map<uint32_t, std::pair<std::string, size_t>>&
+              miBf_ID_to_seq_ID_and_len,
+            std::unordered_map<std::string, completeness_struct>&
+              seq_name_to_completeness,
+            std::set<GFFEntry, GFFEntryComparator>& pre_gff_set,
+            std::set<GFFEntry, GFFEntryComparator>& gff_set,
+            size_t hash_num,
+            size_t kmer_size,
+            size_t rescue_kmer_size,
+            double lower_bound,
+            size_t max_offset,
+            const std::string& db_path_loc,
+            const std::string& mibf_prefix,
+            bool debug_flag)
+{
   std::unordered_map<
-      size_t, std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>>
-      frame_to_block_id_to_id_and_pos;
+    size_t,
+    std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>>
+    frame_to_block_id_to_id_and_pos;
   std::map<uint32_t, size_t, std::greater<size_t>>
-      id_to_count_across_all_frames;
+    id_to_count_across_all_frames;
   std::unordered_map<uint32_t, std::set<FrameBlock, FrameBlockComparator>>
-      id_to_FrameBlock_id_and_seq_pos;
+    id_to_FrameBlock_id_and_seq_pos;
 
   for (size_t frame = 0; frame < FRAMES; ++frame) {
     size_t ori_frame = frame + ori * FRAMES;
-    btllib::AAHash aahash(sixframed_xlated_proteins[ori_frame], hash_num, kmer_size, 1);
-    btllib::AAHash aahash2(sixframed_xlated_proteins[ori_frame], hash_num, kmer_size, 2);
-    btllib::AAHash aahash3(sixframed_xlated_proteins[ori_frame], hash_num, kmer_size, 3);
-    aahash.roll(); aahash2.roll(); aahash3.roll();
+    btllib::AAHash aahash(
+      sixframed_xlated_proteins[ori_frame], hash_num, kmer_size, 1);
+    btllib::AAHash aahash2(
+      sixframed_xlated_proteins[ori_frame], hash_num, kmer_size, 2);
+    btllib::AAHash aahash3(
+      sixframed_xlated_proteins[ori_frame], hash_num, kmer_size, 3);
+    aahash.roll();
+    aahash2.roll();
+    aahash3.roll();
     std::deque<std::vector<uint32_t>> miBf_IDs_snapshot, miBf_pos_snapshot;
     std::unordered_map<uint32_t, size_t> id_to_count;
     std::unordered_set<uint32_t> id_set;
     size_t block_id = 0;
     while (aahash.get_pos() != std::numeric_limits<size_t>::max()) {
-      while (!explore_frame(mi_bf, aahash, miBf_IDs_snapshot, miBf_pos_snapshot, id_to_count) &&
-             aahash.get_pos() != std::numeric_limits<size_t>::max()) {
-        aahash.roll(); aahash2.roll(); aahash3.roll();
+      while (
+        !explore_frame(
+          mi_bf, aahash, miBf_IDs_snapshot, miBf_pos_snapshot, id_to_count) &&
+        aahash.get_pos() != std::numeric_limits<size_t>::max()) {
+        aahash.roll();
+        aahash2.roll();
+        aahash3.roll();
       }
-      if (aahash.get_pos() == std::numeric_limits<size_t>::max()) break;
+      if (aahash.get_pos() == std::numeric_limits<size_t>::max())
+        break;
 
       if (debug_flag) {
         std::cerr << "Debugging Start State:" << std::endl;
         for (auto& ID_count : id_to_count) {
           std::cerr << "------------------" << std::endl;
-          std::cerr <<  "id: " << ID_count.first << std::endl;
-          std::cerr <<  "seq_id: " << miBf_ID_to_seq_ID_and_len[ID_count.first].first << std::endl;
-          std::cerr <<  "seq_id counts: " << ID_count.second << std::endl;
+          std::cerr << "id: " << ID_count.first << std::endl;
+          std::cerr << "seq_id: "
+                    << miBf_ID_to_seq_ID_and_len[ID_count.first].first
+                    << std::endl;
+          std::cerr << "seq_id counts: " << ID_count.second << std::endl;
           std::cerr << "------------------" << std::endl;
         }
-        
       }
 
       size_t seq_pos = aahash.get_pos() - (MINIMUM_CONSECUTIVE_HIT - 1);
@@ -562,118 +617,139 @@ void process_ori(const btllib::SeqReader::Record& record,
         if (ID_count.second == temp_max_count) {
           id_set.insert(ID_count.first);
           prio_ids.insert(ID_count.first);
-          if (debug_flag){
+          if (debug_flag) {
             std::cerr << "Debugging ID_insertion:" << std::endl;
             std::cerr << ID_count.first << std::endl;
           }
         }
       }
-      
 
       std::unordered_map<uint32_t, std::set<uint32_t>> id_to_pos_set;
       for (size_t i = 0; i < miBf_IDs_snapshot.size(); ++i) {
         for (size_t j = 0; j < miBf_IDs_snapshot[i].size(); ++j) {
-          if (id_set.count(miBf_IDs_snapshot[i][j])){
-            id_to_pos_set[miBf_IDs_snapshot[i][j]].insert(miBf_pos_snapshot[i][j]);
-            }
-
+          if (id_set.count(miBf_IDs_snapshot[i][j])) {
+            id_to_pos_set[miBf_IDs_snapshot[i][j]].insert(
+              miBf_pos_snapshot[i][j]);
+          }
         }
       }
 
-      aahash.roll(); aahash2.roll(); aahash3.roll();
+      aahash.roll();
+      aahash2.roll();
+      aahash3.roll();
       if (debug_flag) {
         std::cerr << "Debugging Block Extension:" << std::endl;
-        }
+      }
       bool extend_block = true;
-      while (extend_block && aahash.get_pos() != std::numeric_limits<size_t>::max()) {
+      while (extend_block &&
+             aahash.get_pos() != std::numeric_limits<size_t>::max()) {
         std::vector<uint32_t> ids_vec, temp_pos_vec;
         if (debug_flag) {
-          std::cerr << "Testing extension on pos: " << aahash.get_pos() << std::endl; 
+          std::cerr << "Testing extension on pos: " << aahash.get_pos()
+                    << std::endl;
         }
 
+        bool has_prio1 = false, has_prio2 = false, has_prio3 = false;
+        bool exist1 = false, exist2 = false, exist3 = false;
 
-bool has_prio1 = false, has_prio2 = false, has_prio3 = false;
-bool exist1 = false, exist2 = false, exist3 = false;
+        std::vector<uint64_t> chosen_temp_ID_pos;
 
-std::vector<uint64_t> chosen_temp_ID_pos;
+        if (mi_bf.bv_contains(aahash.hashes())) {
+          const auto& temp_ID_pos = mi_bf.get_id(aahash.hashes());
+          exist1 = true;
+          for (const auto& id_pos : temp_ID_pos) {
+            auto demasked = id_pos & mi_bf.ANTI_MASK;
+            if (prio_ids.count(demasked >> HASH_ID_SHIFT)) {
+              chosen_temp_ID_pos = temp_ID_pos;
+              has_prio1 = true;
+              break;
+            }
+          }
+          if (!has_prio1) {
+            chosen_temp_ID_pos = temp_ID_pos;
+          }
+        }
 
-if (mi_bf.bv_contains(aahash.hashes())) {
-  const auto &temp_ID_pos = mi_bf.get_id(aahash.hashes());
-  exist1 = true;
-  for (const auto &id_pos : temp_ID_pos) {
-    auto demasked = id_pos & mi_bf.ANTI_MASK;
-    if (prio_ids.count(demasked >> HASH_ID_SHIFT)) {
-      chosen_temp_ID_pos = temp_ID_pos;
-      has_prio1 = true;
-      break;
-    }
-  }
-  if (!has_prio1) {
-    chosen_temp_ID_pos = temp_ID_pos;
-  }
-}
+        if (!has_prio1 && mi_bf.bv_contains(aahash2.hashes())) {
+          const auto& temp_ID_pos = mi_bf.get_id(aahash2.hashes());
+          exist2 = true;
+          for (const auto& id_pos : temp_ID_pos) {
+            auto demasked = id_pos & mi_bf.ANTI_MASK;
+            if (prio_ids.count(demasked >> HASH_ID_SHIFT)) {
+              chosen_temp_ID_pos = temp_ID_pos;
+              has_prio2 = true;
+              break;
+            }
+          }
+          if (!has_prio2 && !exist1) {
+            chosen_temp_ID_pos = temp_ID_pos;
+          }
+        }
 
-if (!has_prio1 && mi_bf.bv_contains(aahash2.hashes())) {
-  const auto &temp_ID_pos = mi_bf.get_id(aahash2.hashes());
-  exist2 = true;
-  for (const auto &id_pos : temp_ID_pos) {
-    auto demasked = id_pos & mi_bf.ANTI_MASK;
-    if (prio_ids.count(demasked >> HASH_ID_SHIFT)) {
-      chosen_temp_ID_pos = temp_ID_pos;
-      has_prio2 = true;
-      break;
-    }
-  }
-  if (!has_prio2 && !exist1) {
-    chosen_temp_ID_pos = temp_ID_pos;
-  }
-}
-
-if (!has_prio1 && !has_prio2 && mi_bf.bv_contains(aahash3.hashes())) {
-  const auto &temp_ID_pos = mi_bf.get_id(aahash3.hashes());
-  exist3 = true;
-  for (const auto &id_pos : temp_ID_pos) {
-    auto demasked = id_pos & mi_bf.ANTI_MASK;
-    if (prio_ids.count(demasked >> HASH_ID_SHIFT)) {
-      chosen_temp_ID_pos = temp_ID_pos;
-      has_prio3 = true;
-      break;
-    }
-  }
-  if (!has_prio3 && !exist1 && !exist2) {
-    chosen_temp_ID_pos = temp_ID_pos;
-  }
-}
-if (has_prio1 || has_prio2 || has_prio3 || exist1 || exist2 || exist3) {
-  process_hashes(chosen_temp_ID_pos, id_set, id_to_pos_set, extend_block, ids_vec, temp_pos_vec, mi_bf);
-} else {
-  extend_block = false;
-}
-        if (extend_block) { aahash.roll(); aahash2.roll(); aahash3.roll(); }
+        if (!has_prio1 && !has_prio2 && mi_bf.bv_contains(aahash3.hashes())) {
+          const auto& temp_ID_pos = mi_bf.get_id(aahash3.hashes());
+          exist3 = true;
+          for (const auto& id_pos : temp_ID_pos) {
+            auto demasked = id_pos & mi_bf.ANTI_MASK;
+            if (prio_ids.count(demasked >> HASH_ID_SHIFT)) {
+              chosen_temp_ID_pos = temp_ID_pos;
+              has_prio3 = true;
+              break;
+            }
+          }
+          if (!has_prio3 && !exist1 && !exist2) {
+            chosen_temp_ID_pos = temp_ID_pos;
+          }
+        }
+        if (has_prio1 || has_prio2 || has_prio3 || exist1 || exist2 || exist3) {
+          process_hashes(chosen_temp_ID_pos,
+                         id_set,
+                         id_to_pos_set,
+                         extend_block,
+                         ids_vec,
+                         temp_pos_vec,
+                         mi_bf);
+        } else {
+          extend_block = false;
+        }
+        if (extend_block) {
+          aahash.roll();
+          aahash2.roll();
+          aahash3.roll();
+        }
       }
 
       for (auto& ID_pos_set : id_to_pos_set) {
-        if (ID_pos_set.second.size() < 2) continue;
+        if (ID_pos_set.second.size() < 2)
+          continue;
         frame_to_block_id_to_id_and_pos[frame][block_id] = {
-            *ID_pos_set.second.begin(), *ID_pos_set.second.rbegin()};
-        id_to_FrameBlock_id_and_seq_pos[ID_pos_set.first].emplace(frame, block_id, seq_pos);
+          *ID_pos_set.second.begin(), *ID_pos_set.second.rbegin()
+        };
+        id_to_FrameBlock_id_and_seq_pos[ID_pos_set.first].emplace(
+          frame, block_id, seq_pos);
 
-      if (debug_flag) {
-        std::cerr << "Debugging Block Evaluation:" << std::endl;
-        std::cerr << "------------------" << std::endl;
-        std::cerr <<  "seq_id: " << miBf_ID_to_seq_ID_and_len[ID_pos_set.first].first << std::endl;
-        std::cerr <<  "seq_id counts: " << ID_pos_set.second.size() << std::endl;
-        std::cerr <<  "seq_id frame: " << frame << std::endl;
-        std::cerr <<  "seq_id block id: " <<  block_id << std::endl;
-        std::cerr <<  "seq_id seq_pos: " << seq_pos << std::endl;
-        std::cerr <<  "seq_id start: " << *ID_pos_set.second.begin() << std::endl;
-        std::cerr <<  "seq_id end: " << *ID_pos_set.second.rbegin() << std::endl;
-        std::cerr << "------------------" << std::endl;        
-      }
+        if (debug_flag) {
+          std::cerr << "Debugging Block Evaluation:" << std::endl;
+          std::cerr << "------------------" << std::endl;
+          std::cerr << "seq_id: "
+                    << miBf_ID_to_seq_ID_and_len[ID_pos_set.first].first
+                    << std::endl;
+          std::cerr << "seq_id counts: " << ID_pos_set.second.size()
+                    << std::endl;
+          std::cerr << "seq_id frame: " << frame << std::endl;
+          std::cerr << "seq_id block id: " << block_id << std::endl;
+          std::cerr << "seq_id seq_pos: " << seq_pos << std::endl;
+          std::cerr << "seq_id start: " << *ID_pos_set.second.begin()
+                    << std::endl;
+          std::cerr << "seq_id end: " << *ID_pos_set.second.rbegin()
+                    << std::endl;
+          std::cerr << "------------------" << std::endl;
+        }
 
-        #pragma omp critical
+#pragma omp critical
         {
-          id_to_count_across_all_frames[ID_pos_set.first] += ID_pos_set.second.size();
+          id_to_count_across_all_frames[ID_pos_set.first] +=
+            ID_pos_set.second.size();
         }
 
         ++block_id;
@@ -689,35 +765,48 @@ if (has_prio1 || has_prio2 || has_prio3 || exist1 || exist2 || exist3) {
 
   for (auto& ID_count : id_to_count_across_all_frames) {
     uint32_t miBf_ID = ID_count.first;
-    if (!miBf_ID_to_seq_ID_and_len.count(miBf_ID)) continue;
+    if (!miBf_ID_to_seq_ID_and_len.count(miBf_ID))
+      continue;
 
     const std::string& seq_name = miBf_ID_to_seq_ID_and_len[miBf_ID].first;
-    size_t expected_kmer_counts = miBf_ID_to_seq_ID_and_len[miBf_ID].second - kmer_size + 1;
-    size_t adjusted_kmer_counts = 0, start_pos = 0, end_pos = 0, frame = 3, complete_copies = 0, incomplete_copies = 0;
+    size_t expected_kmer_counts =
+      miBf_ID_to_seq_ID_and_len[miBf_ID].second - kmer_size + 1;
+    size_t adjusted_kmer_counts = 0, start_pos = 0, end_pos = 0, frame = 3,
+           complete_copies = 0, incomplete_copies = 0;
     int64_t seq_start_nt = -1, seq_end_nt = -1;
-    size_t block_len = 0, block_start = 0, prev_block_len = 0, prev_block_start = 0;
+    size_t block_len = 0, block_start = 0, prev_block_len = 0,
+           prev_block_start = 0;
     size_t starting_frame = 0, starting_block_id = 0;
-    std::vector<std::tuple<size_t, size_t>> start_end_pos_vec, start_end_pos_tar_vec;
+    std::vector<std::tuple<size_t, size_t>> start_end_pos_vec,
+      start_end_pos_tar_vec;
 
     std::vector<std::reference_wrapper<const FrameBlock>> vec;
     for (auto& blk : id_to_FrameBlock_id_and_seq_pos[miBf_ID]) {
       vec.push_back(blk);
     }
     if (debug_flag) {
-        std::cerr << "Debugging Block ordering:" << std::endl;
-        std::cerr << "------------------" << std::endl;
-        std::cerr <<  "seq_id: " << miBf_ID_to_seq_ID_and_len[miBf_ID].first << std::endl;
-          for (auto& blk : id_to_FrameBlock_id_and_seq_pos[miBf_ID]) {
-            std::cerr <<  "seq_id frame: " <<  blk.frame << std::endl;
-            std::cerr <<  "seq_id query_start_in_prot_space: " <<  blk.query_start_in_prot_space << std::endl;
-            std::cerr <<  "seq_id block id: " << blk.block_id << std::endl;
-             std::cerr <<  "seq_id start pos: " << frame_to_block_id_to_id_and_pos[blk.frame][blk.block_id].first << std::endl;
-             std::cerr <<  "seq_id end pos: " << frame_to_block_id_to_id_and_pos[blk.frame][blk.block_id].second << std::endl;
-          }
+      std::cerr << "Debugging Block ordering:" << std::endl;
+      std::cerr << "------------------" << std::endl;
+      std::cerr << "seq_id: " << miBf_ID_to_seq_ID_and_len[miBf_ID].first
+                << std::endl;
+      for (auto& blk : id_to_FrameBlock_id_and_seq_pos[miBf_ID]) {
+        std::cerr << "seq_id frame: " << blk.frame << std::endl;
+        std::cerr << "seq_id query_start_in_prot_space: "
+                  << blk.query_start_in_prot_space << std::endl;
+        std::cerr << "seq_id block id: " << blk.block_id << std::endl;
+        std::cerr
+          << "seq_id start pos: "
+          << frame_to_block_id_to_id_and_pos[blk.frame][blk.block_id].first
+          << std::endl;
+        std::cerr
+          << "seq_id end pos: "
+          << frame_to_block_id_to_id_and_pos[blk.frame][blk.block_id].second
+          << std::endl;
+      }
 
-        std::cerr << "------------------" << std::endl;
+      std::cerr << "------------------" << std::endl;
     }
-    if (debug_flag){
+    if (debug_flag) {
       std::cerr << "Debugging Block combining:" << std::endl;
       std::cerr << "------------------" << std::endl;
     }
@@ -732,12 +821,11 @@ if (has_prio1 || has_prio2 || has_prio3 || exist1 || exist2 || exist3) {
         starting_block_id = block_id;
       }
 
-      
-      if (debug_flag){ 
-        std::cerr <<  "idx: " << ref_idx << std::endl;
-        std::cerr <<  "frame: " << frame << std::endl;
-        std::cerr <<  "seq_start_nt: " << seq_start_nt << std::endl;
-        std::cerr <<  "block_id : " << block_id << std::endl;
+      if (debug_flag) {
+        std::cerr << "idx: " << ref_idx << std::endl;
+        std::cerr << "frame: " << frame << std::endl;
+        std::cerr << "seq_start_nt: " << seq_start_nt << std::endl;
+        std::cerr << "block_id : " << block_id << std::endl;
       }
 
       if (!frame_to_block_id_to_id_and_pos[frame].count(block_id)) {
@@ -751,66 +839,100 @@ if (has_prio1 || has_prio2 || has_prio3 || exist1 || exist2 || exist3) {
                   frame_to_block_id_to_id_and_pos[frame][block_id].first + 1;
 
       if (start_end_pos_vec.empty()) {
-        start_end_pos_vec.emplace_back(block_start, block_start + block_len - 1);
-        start_end_pos_tar_vec.emplace_back(frame_to_block_id_to_id_and_pos[frame][block_id].first,
-                                           frame_to_block_id_to_id_and_pos[frame][block_id].second + 1);
+        start_end_pos_vec.emplace_back(block_start,
+                                       block_start + block_len - 1);
+        start_end_pos_tar_vec.emplace_back(
+          frame_to_block_id_to_id_and_pos[frame][block_id].first,
+          frame_to_block_id_to_id_and_pos[frame][block_id].second + 1);
       }
 
       if (end_pos == 0) {
         start_pos = frame_to_block_id_to_id_and_pos[frame][block_id].first;
         end_pos = frame_to_block_id_to_id_and_pos[frame][block_id].second;
         adjusted_kmer_counts = block_len;
-      } else if (end_pos < frame_to_block_id_to_id_and_pos[frame][block_id].first) {
-        start_end_pos_vec.emplace_back(block_start, block_start + block_len - 1);
-        start_end_pos_tar_vec.emplace_back(frame_to_block_id_to_id_and_pos[frame][block_id].first,
-                                           frame_to_block_id_to_id_and_pos[frame][block_id].second + 1);
-        if (frame_to_block_id_to_id_and_pos[frame][block_id].first - end_pos >= kmer_size)
+      } else if (end_pos <
+                 frame_to_block_id_to_id_and_pos[frame][block_id].first) {
+        start_end_pos_vec.emplace_back(block_start,
+                                       block_start + block_len - 1);
+        start_end_pos_tar_vec.emplace_back(
+          frame_to_block_id_to_id_and_pos[frame][block_id].first,
+          frame_to_block_id_to_id_and_pos[frame][block_id].second + 1);
+        if (frame_to_block_id_to_id_and_pos[frame][block_id].first - end_pos >=
+            kmer_size)
           adjusted_kmer_counts += block_len + kmer_size - 1;
         else
-          adjusted_kmer_counts += block_len + frame_to_block_id_to_id_and_pos[frame][block_id].first - end_pos - 1;
+          adjusted_kmer_counts +=
+            block_len + frame_to_block_id_to_id_and_pos[frame][block_id].first -
+            end_pos - 1;
 
         end_pos = frame_to_block_id_to_id_and_pos[frame][block_id].second;
         size_t current_span = end_pos - start_pos;
 
         if (ref_idx + 2 < vec.size()) {
-          size_t idx_offset = look_ahead(vec, ref_idx, end_pos, frame_to_block_id_to_id_and_pos, max_offset, current_span);
+          size_t idx_offset = look_ahead(vec,
+                                         ref_idx,
+                                         end_pos,
+                                         frame_to_block_id_to_id_and_pos,
+                                         max_offset,
+                                         current_span);
           if (idx_offset > 0) {
             if (debug_flag) {
               std::cerr << "look ahead successful" << std::endl;
             }
             ref_idx += idx_offset;
-            }
+          }
         }
       } else {
-        seq_end_nt = (prev_block_start + prev_block_len + kmer_size - 1) * 3 + frame;
-        double prev_score = static_cast<double>(adjusted_kmer_counts) / expected_kmer_counts;
-size_t lhs = frame_to_block_id_to_id_and_pos[frame][block_id].second;
-size_t rhs = frame_to_block_id_to_id_and_pos[starting_frame][starting_block_id].first;
-size_t fragment_len = (lhs > rhs ? lhs - rhs : rhs - lhs) + kmer_size + 1;
-double frag_leng_ratio = static_cast<double>(fragment_len) /
-                         static_cast<double>(miBf_ID_to_seq_ID_and_len[miBf_ID].second);
+        seq_end_nt =
+          (prev_block_start + prev_block_len + kmer_size - 1) * 3 + frame;
+        double prev_score =
+          static_cast<double>(adjusted_kmer_counts) / expected_kmer_counts;
+        size_t lhs = frame_to_block_id_to_id_and_pos[frame][block_id].second;
+        size_t rhs =
+          frame_to_block_id_to_id_and_pos[starting_frame][starting_block_id]
+            .first;
+        size_t fragment_len =
+          (lhs > rhs ? lhs - rhs : rhs - lhs) + kmer_size + 1;
+        double frag_leng_ratio =
+          static_cast<double>(fragment_len) /
+          static_cast<double>(miBf_ID_to_seq_ID_and_len[miBf_ID].second);
 
-        if (adjusted_kmer_counts > lower_bound * expected_kmer_counts || (frag_leng_ratio > 0.9 && (abs((int)seq_end_nt - (int)seq_start_nt)) < 3000 )) {
+        if (adjusted_kmer_counts > lower_bound * expected_kmer_counts ||
+            (frag_leng_ratio > 0.9 &&
+             (abs((int)seq_end_nt - (int)seq_start_nt)) < 3000)) {
           if (start_end_pos_vec.size() > 1)
-            fill_in_gaps(start_end_pos_vec, start_end_pos_tar_vec, adjusted_kmer_counts, hash_num, rescue_kmer_size,
-                         sixframed_xlated_proteins, ori, kmer_size, miBf_ID, db_path_loc, mibf_prefix);
+            fill_in_gaps(start_end_pos_vec,
+                         start_end_pos_tar_vec,
+                         adjusted_kmer_counts,
+                         hash_num,
+                         rescue_kmer_size,
+                         sixframed_xlated_proteins,
+                         ori,
+                         kmer_size,
+                         miBf_ID,
+                         db_path_loc,
+                         mibf_prefix);
           if (adjusted_kmer_counts > 0.95 * expected_kmer_counts)
             ++complete_copies;
           else
             ++incomplete_copies;
         }
 
-        double score = std::min(1.0, static_cast<double>(adjusted_kmer_counts) / expected_kmer_counts);
+        double score = std::min(1.0,
+                                static_cast<double>(adjusted_kmer_counts) /
+                                  expected_kmer_counts);
         if (strand == "-") {
           auto tmp = seq_start_nt;
           seq_start_nt = record.seq.size() - seq_end_nt;
           seq_end_nt = record.seq.size() - tmp;
         }
 
-        #pragma omp critical
+#pragma omp critical
         {
-          pre_gff_set.emplace(record.id, seq_start_nt, seq_end_nt, prev_score, strand, seq_name);
-          gff_set.emplace(record.id, seq_start_nt, seq_end_nt, score, strand, seq_name);
+          pre_gff_set.emplace(
+            record.id, seq_start_nt, seq_end_nt, prev_score, strand, seq_name);
+          gff_set.emplace(
+            record.id, seq_start_nt, seq_end_nt, score, strand, seq_name);
         }
 
         end_pos = frame_to_block_id_to_id_and_pos[frame][block_id].second;
@@ -819,10 +941,13 @@ double frag_leng_ratio = static_cast<double>(fragment_len) /
         seq_start_nt = blk.query_start_in_prot_space * 3 + frame;
         starting_frame = frame;
         starting_block_id = block_id;
-        start_end_pos_vec.clear(); start_end_pos_tar_vec.clear();
-        start_end_pos_vec.emplace_back(block_start, block_start + block_len - 1);
-        start_end_pos_tar_vec.emplace_back(frame_to_block_id_to_id_and_pos[frame][block_id].first,
-                                           frame_to_block_id_to_id_and_pos[frame][block_id].second + 1);
+        start_end_pos_vec.clear();
+        start_end_pos_tar_vec.clear();
+        start_end_pos_vec.emplace_back(block_start,
+                                       block_start + block_len - 1);
+        start_end_pos_tar_vec.emplace_back(
+          frame_to_block_id_to_id_and_pos[frame][block_id].first,
+          frame_to_block_id_to_id_and_pos[frame][block_id].second + 1);
       }
     }
 
@@ -830,35 +955,59 @@ double frag_leng_ratio = static_cast<double>(fragment_len) /
     frame = last_blk.frame;
     size_t block_id = last_blk.block_id;
 
-    double final_score = static_cast<double>(adjusted_kmer_counts) / expected_kmer_counts;
-size_t lhs = frame_to_block_id_to_id_and_pos[frame][block_id].second;
-size_t rhs = frame_to_block_id_to_id_and_pos[starting_frame][starting_block_id].first;
-size_t fragment_len = (lhs > rhs ? lhs - rhs : rhs - lhs) + kmer_size + 1;
-double frag_leng_ratio = static_cast<double>(fragment_len) /
-                         static_cast<double>(miBf_ID_to_seq_ID_and_len[miBf_ID].second);
-seq_end_nt = (last_blk.query_start_in_prot_space + block_len + kmer_size - 1) * 3 + frame;
+    double final_score =
+      static_cast<double>(adjusted_kmer_counts) / expected_kmer_counts;
+    size_t lhs = frame_to_block_id_to_id_and_pos[frame][block_id].second;
+    size_t rhs =
+      frame_to_block_id_to_id_and_pos[starting_frame][starting_block_id].first;
+    size_t fragment_len = (lhs > rhs ? lhs - rhs : rhs - lhs) + kmer_size + 1;
+    double frag_leng_ratio =
+      static_cast<double>(fragment_len) /
+      static_cast<double>(miBf_ID_to_seq_ID_and_len[miBf_ID].second);
+    seq_end_nt =
+      (last_blk.query_start_in_prot_space + block_len + kmer_size - 1) * 3 +
+      frame;
     if (debug_flag) {
       std::cerr << "frag leng ratio: " << frag_leng_ratio << std::endl;
-      std::cerr << "start: " << frame_to_block_id_to_id_and_pos[frame][block_id].second  << std::endl;
-      std::cerr << "end: " << frame_to_block_id_to_id_and_pos[starting_frame][starting_block_id].first  << std::endl;
-      std::cerr << "seq len:" << miBf_ID_to_seq_ID_and_len[miBf_ID].second << std::endl;
+      std::cerr << "start: "
+                << frame_to_block_id_to_id_and_pos[frame][block_id].second
+                << std::endl;
+      std::cerr
+        << "end: "
+        << frame_to_block_id_to_id_and_pos[starting_frame][starting_block_id]
+             .first
+        << std::endl;
+      std::cerr << "seq len:" << miBf_ID_to_seq_ID_and_len[miBf_ID].second
+                << std::endl;
     }
-    if (adjusted_kmer_counts > lower_bound * expected_kmer_counts || (frag_leng_ratio > 0.9 && (abs((int)seq_end_nt - (int)seq_start_nt)) < 3000 )) {
-      if (start_end_pos_vec.size() > 1)
-      {
-        if(debug_flag) {
+    if (adjusted_kmer_counts > lower_bound * expected_kmer_counts ||
+        (frag_leng_ratio > 0.9 &&
+         (abs((int)seq_end_nt - (int)seq_start_nt)) < 3000)) {
+      if (start_end_pos_vec.size() > 1) {
+        if (debug_flag) {
           std::cerr << "start_end_pos_vec" << std::endl;
           for (auto& start_end_pos : start_end_pos_vec) {
-            std::cerr << "start: " << std::get<0>(start_end_pos) << " end: " << std::get<1>(start_end_pos) << std::endl;
+            std::cerr << "start: " << std::get<0>(start_end_pos)
+                      << " end: " << std::get<1>(start_end_pos) << std::endl;
           }
           std::cerr << "start_end_pos_tar_vec" << std::endl;
           for (auto& start_end_pos : start_end_pos_tar_vec) {
-            std::cerr << "start: " << std::get<0>(start_end_pos) << " end: " << std::get<1>(start_end_pos) << std::endl;
+            std::cerr << "start: " << std::get<0>(start_end_pos)
+                      << " end: " << std::get<1>(start_end_pos) << std::endl;
           }
         }
 
-        fill_in_gaps(start_end_pos_vec, start_end_pos_tar_vec, adjusted_kmer_counts, hash_num, rescue_kmer_size,
-                     sixframed_xlated_proteins, ori, kmer_size, miBf_ID, db_path_loc, mibf_prefix);
+        fill_in_gaps(start_end_pos_vec,
+                     start_end_pos_tar_vec,
+                     adjusted_kmer_counts,
+                     hash_num,
+                     rescue_kmer_size,
+                     sixframed_xlated_proteins,
+                     ori,
+                     kmer_size,
+                     miBf_ID,
+                     db_path_loc,
+                     mibf_prefix);
       }
       if (adjusted_kmer_counts > 0.95 * expected_kmer_counts)
         ++complete_copies;
@@ -866,14 +1015,16 @@ seq_end_nt = (last_blk.query_start_in_prot_space + block_len + kmer_size - 1) * 
         ++incomplete_copies;
     }
 
-    #pragma omp atomic
+#pragma omp atomic
     seq_name_to_completeness[seq_name].complete_copies += complete_copies;
-    #pragma omp atomic
+#pragma omp atomic
     seq_name_to_completeness[seq_name].incomplete_copies += incomplete_copies;
 
-
-    seq_end_nt = (last_blk.query_start_in_prot_space + block_len + kmer_size - 1) * 3 + frame;
-    double score = std::min(1.0, static_cast<double>(adjusted_kmer_counts) / expected_kmer_counts);
+    seq_end_nt =
+      (last_blk.query_start_in_prot_space + block_len + kmer_size - 1) * 3 +
+      frame;
+    double score = std::min(
+      1.0, static_cast<double>(adjusted_kmer_counts) / expected_kmer_counts);
 
     if (strand == "-") {
       auto tmp = seq_start_nt;
@@ -881,7 +1032,7 @@ seq_end_nt = (last_blk.query_start_in_prot_space + block_len + kmer_size - 1) * 
       seq_end_nt = record.seq.size() - tmp;
     }
 
-    #pragma omp critical
+#pragma omp critical
     {
       if (debug_flag) {
         std::cerr << "checkpoint_final2" << std::endl;
@@ -891,81 +1042,84 @@ seq_end_nt = (last_blk.query_start_in_prot_space + block_len + kmer_size - 1) * 
         std::cerr << "strand: " << strand << std::endl;
         std::cerr << "seq_name" << seq_name << std::endl;
       }
-      pre_gff_set.emplace(record.id, seq_start_nt, seq_end_nt, final_score, strand, seq_name);
-      gff_set.emplace(record.id, seq_start_nt, seq_end_nt, score, strand, seq_name);
+      pre_gff_set.emplace(
+        record.id, seq_start_nt, seq_end_nt, final_score, strand, seq_name);
+      gff_set.emplace(
+        record.id, seq_start_nt, seq_end_nt, score, strand, seq_name);
     }
   }
 }
 
-
-int main(int argc, char *argv[]) {
+int
+main(int argc, char* argv[])
+{
   argparse::ArgumentParser program("aaKomp");
 
   program.add_argument("--help")
-      .help("Print this help message")
-      .default_value(false)
-      .implicit_value(true);
+    .help("Print this help message")
+    .default_value(false)
+    .implicit_value(true);
 
   program.add_argument("-i", "--input").help("Input file name").required();
 
   program.add_argument("-o", "--output")
-      .help("Output prefix")
-      .default_value(std::string("_"));
+    .help("Output prefix")
+    .default_value(std::string("_"));
 
   program.add_argument("-r", "--reference").help("Reference path").required();
 
   program.add_argument("-t", "--threads")
-      .help("Number of threads to use")
-      .default_value(size_t(1))
-      .scan<'u', size_t>();
+    .help("Number of threads to use")
+    .default_value(size_t(1))
+    .scan<'u', size_t>();
 
   program.add_argument("-v", "--verbose")
-      .help("Verbose output")
-      .default_value(false)
-      .implicit_value(true);
+    .help("Verbose output")
+    .default_value(false)
+    .implicit_value(true);
 
   program.add_argument("--debug")
-      .help("Debug output")
-      .default_value(false)
-      .implicit_value(true);
+    .help("Debug output")
+    .default_value(false)
+    .implicit_value(true);
 
   program.add_argument("-m", "--mibf_path").help("miBf file path").required();
 
   program.add_argument("-h", "--hash")
-      .help("Number of hash functions")
-      .default_value(size_t(9))
-      .scan<'u', size_t>();
+    .help("Number of hash functions")
+    .default_value(size_t(9))
+    .scan<'u', size_t>();
 
   program.add_argument("-k", "--kmer")
-      .help("K-mer size")
-      .default_value(size_t(9))
-      .scan<'u', size_t>();
+    .help("K-mer size")
+    .default_value(size_t(9))
+    .scan<'u', size_t>();
 
   program.add_argument("-l", "--lower_bound")
-      .help("Lower bound value")
-      .default_value(0.7)
-      .scan<'g', double>();
+    .help("Lower bound value")
+    .default_value(0.7)
+    .scan<'g', double>();
 
   program.add_argument("-rks", "--rescue_kmer")
-      .help("Rescue k-mer size")
-      .default_value(size_t(4))
-      .scan<'u', size_t>();
+    .help("Rescue k-mer size")
+    .default_value(size_t(4))
+    .scan<'u', size_t>();
 
   program.add_argument("-mo", "--max_offset")
-      .help("Maximum offset")
-      .default_value(size_t(2))
-      .scan<'u', size_t>();
+    .help("Maximum offset")
+    .default_value(size_t(2))
+    .scan<'u', size_t>();
 
   program.add_argument("--version")
-      .help("Display version information")
-      .default_value(false)
-      .implicit_value(true);
+    .help("Display version information")
+    .default_value(false)
+    .implicit_value(true);
 
   program.add_argument("-s", "--strand")
-      .help("strand for debugging (pos/neg)")
-      .default_value(std::string(""));
+    .help("strand for debugging (pos/neg)")
+    .default_value(std::string(""));
 
-  bool help_flag = std::any_of(argv, argv + argc, [](const char *arg) {
+  bool help_flag = std::any_of(argv, argv + argc, [](const char* arg) {
     return std::string(arg) == "--help";
   });
 
@@ -976,7 +1130,7 @@ int main(int argc, char *argv[]) {
 
   try {
     program.parse_args(argc, argv);
-  } catch (const std::exception &err) {
+  } catch (const std::exception& err) {
     std::cerr << err.what() << std::endl;
     std::cerr << program;
     return 1;
@@ -1017,15 +1171,15 @@ int main(int argc, char *argv[]) {
 
   if (input_file.empty()) {
     std::cerr
-        << "Input file is required. Use -h or --help for more information."
-        << std::endl;
+      << "Input file is required. Use -h or --help for more information."
+      << std::endl;
     exit(1);
   }
 
   if (reference_path.empty()) {
     std::cerr
-        << "Reference path is required. Use -h or --help for more information."
-        << std::endl;
+      << "Reference path is required. Use -h or --help for more information."
+      << std::endl;
     exit(1);
   }
 
@@ -1037,15 +1191,15 @@ int main(int argc, char *argv[]) {
 
   if (input_file.empty()) {
     std::cerr
-        << "Input file is required. Use -h or --help for more information."
-        << std::endl;
+      << "Input file is required. Use -h or --help for more information."
+      << std::endl;
     return 1;
   }
 
   if (reference_path.empty()) {
     std::cerr
-        << "Reference path is required. Use -h or --help for more information."
-        << std::endl;
+      << "Reference path is required. Use -h or --help for more information."
+      << std::endl;
     return 1;
   }
 
@@ -1086,7 +1240,7 @@ int main(int argc, char *argv[]) {
 
   std::unordered_map<std::string, uint32_t> seq_ID_to_miBf_ID;
   std::unordered_map<uint32_t, std::pair<std::string, size_t>>
-      miBf_ID_to_seq_ID_and_len;
+    miBf_ID_to_seq_ID_and_len;
   std::unordered_map<uint32_t, std::string> miBf_ID_to_seq;
   {
     uint32_t miBf_ID = 1;
@@ -1094,11 +1248,11 @@ int main(int argc, char *argv[]) {
                              btllib::SeqReader::Flag::LONG_MODE);
     for (const auto record : reader) {
       if (record.seq.size() < (size_t)kmer_size + 5) {
-          continue;
+        continue;
       }
       seq_ID_to_miBf_ID[record.id] = miBf_ID;
       miBf_ID_to_seq_ID_and_len[miBf_ID] =
-          std::make_pair(record.id, record.seq.size());
+        std::make_pair(record.id, record.seq.size());
       miBf_ID_to_seq[miBf_ID] = record.seq;
       ++miBf_ID;
     }
@@ -1134,8 +1288,8 @@ int main(int argc, char *argv[]) {
 
   std::set<GFFEntry, GFFEntryComparator> gff_set;
   std::set<GFFEntry, GFFEntryComparator> pre_gff_set;
-  bool use_nested_parallelism = has_enough_sequence_entries(
-      input_file, threads);
+  bool use_nested_parallelism =
+    has_enough_sequence_entries(input_file, threads);
 
   btllib::SeqReader reader(input_file, btllib::SeqReader::Flag::LONG_MODE);
   if (verbose_flag) {
@@ -1144,84 +1298,86 @@ int main(int argc, char *argv[]) {
 
   std::unordered_map<std::string, completeness_struct> seq_name_to_completeness;
 
-  for (const auto &seq_ID : seq_ID_to_miBf_ID) {
+  for (const auto& seq_ID : seq_ID_to_miBf_ID) {
     seq_name_to_completeness[seq_ID.first] = completeness_struct();
   }
 
-
-  if (debug_flag){
+  if (debug_flag) {
     use_nested_parallelism = true;
   }
 
- if (use_nested_parallelism) {
+  if (use_nested_parallelism) {
 #pragma omp parallel num_threads(threads)
-  for (const auto record : reader) {
-    std::vector<std::string> sixframed_xlated_proteins =
+    for (const auto record : reader) {
+      std::vector<std::string> sixframed_xlated_proteins =
         sixframe_translate(record.seq);
-    size_t ori_start = 0;
-    size_t ori_end = ORIENTATIONS;
-    if (debug_flag) {
-      std::cerr << "prot 0: " << sixframed_xlated_proteins[0] << std::endl;
-      std::cerr << "prot 1: " << sixframed_xlated_proteins[1] << std::endl;
-      std::cerr << "prot 2: " << sixframed_xlated_proteins[2] << std::endl;
-      std::cerr << "prot 3: " << sixframed_xlated_proteins[3] << std::endl;
-      std::cerr << "prot 4: " << sixframed_xlated_proteins[4] << std::endl;
-      std::cerr << "prot 5: " << sixframed_xlated_proteins[5] << std::endl;
-      if (strand != "") {
-        if (strand == "pos") {
-          ori_end = 1;
-        } else if (strand == "neg") {
-          ori_start = 1;
+      size_t ori_start = 0;
+      size_t ori_end = ORIENTATIONS;
+      if (debug_flag) {
+        std::cerr << "prot 0: " << sixframed_xlated_proteins[0] << std::endl;
+        std::cerr << "prot 1: " << sixframed_xlated_proteins[1] << std::endl;
+        std::cerr << "prot 2: " << sixframed_xlated_proteins[2] << std::endl;
+        std::cerr << "prot 3: " << sixframed_xlated_proteins[3] << std::endl;
+        std::cerr << "prot 4: " << sixframed_xlated_proteins[4] << std::endl;
+        std::cerr << "prot 5: " << sixframed_xlated_proteins[5] << std::endl;
+        if (strand != "") {
+          if (strand == "pos") {
+            ori_end = 1;
+          } else if (strand == "neg") {
+            ori_start = 1;
+          }
         }
       }
-    }
 
-    for (size_t ori = ori_start; ori < ori_end; ++ori) {
-      process_ori(record, sixframed_xlated_proteins, ori,
-                  mi_bf,
-                  miBf_ID_to_seq_ID_and_len,
-                  seq_name_to_completeness,
-                  pre_gff_set,
-                  gff_set,
-                  hash_num,
-                  kmer_size,
-                  rescue_kmer_size,
-                  lower_bound,
-                  max_offset,
-                  db_path_loc,
-                  mibf_prefix,
-                  debug_flag);
+      for (size_t ori = ori_start; ori < ori_end; ++ori) {
+        process_ori(record,
+                    sixframed_xlated_proteins,
+                    ori,
+                    mi_bf,
+                    miBf_ID_to_seq_ID_and_len,
+                    seq_name_to_completeness,
+                    pre_gff_set,
+                    gff_set,
+                    hash_num,
+                    kmer_size,
+                    rescue_kmer_size,
+                    lower_bound,
+                    max_offset,
+                    db_path_loc,
+                    mibf_prefix,
+                    debug_flag);
+      }
     }
-  }
-} else {
-omp_set_nested(1);
+  } else {
+    omp_set_nested(1);
 #pragma omp parallel num_threads(threads / 2)
-  for (const auto record : reader) {
-    std::vector<std::string> sixframed_xlated_proteins =
+    for (const auto record : reader) {
+      std::vector<std::string> sixframed_xlated_proteins =
         sixframe_translate(record.seq);
 #pragma omp parallel for num_threads(2)
-    for (size_t ori = 0; ori < ORIENTATIONS; ++ori) {
-      process_ori(record, sixframed_xlated_proteins, ori,
-                  mi_bf,
-                  miBf_ID_to_seq_ID_and_len,
-                  seq_name_to_completeness,
-                  pre_gff_set,
-                  gff_set,
-                  hash_num,
-                  kmer_size,
-                  rescue_kmer_size,
-                  lower_bound,
-                  max_offset,
-                  db_path_loc,
-                  mibf_prefix,
-                  debug_flag);
+      for (size_t ori = 0; ori < ORIENTATIONS; ++ori) {
+        process_ori(record,
+                    sixframed_xlated_proteins,
+                    ori,
+                    mi_bf,
+                    miBf_ID_to_seq_ID_and_len,
+                    seq_name_to_completeness,
+                    pre_gff_set,
+                    gff_set,
+                    hash_num,
+                    kmer_size,
+                    rescue_kmer_size,
+                    lower_bound,
+                    max_offset,
+                    db_path_loc,
+                    mibf_prefix,
+                    debug_flag);
+      }
     }
   }
-}
-
 
   std::unordered_map<std::string, double> seq_name_to_score;
-  for (auto &seq_name_completeness : seq_name_to_completeness) {
+  for (auto& seq_name_completeness : seq_name_to_completeness) {
     output_file << seq_name_completeness.first << "\t"
                 << seq_name_completeness.second.complete_copies << "\t"
                 << seq_name_completeness.second.incomplete_copies << "\t"
@@ -1231,7 +1387,7 @@ omp_set_nested(1);
     seq_name_to_score[seq_name_completeness.first] = 0;
   }
 
-  for (auto &gff : gff_set) {
+  for (auto& gff : gff_set) {
     gff_file << gff.query_name << "\t"
              << "."
              << "\t"
@@ -1246,7 +1402,7 @@ omp_set_nested(1);
     }
   }
   std::vector<double> scores_vec;
-  for (auto &seq_name_score : seq_name_to_score) {
+  for (auto& seq_name_score : seq_name_to_score) {
     scores_vec.push_back(seq_name_score.second);
   }
 
@@ -1263,7 +1419,7 @@ omp_set_nested(1);
   result_out << result << std::endl;
 
   if (debug_flag) {
-    for (auto &gff : pre_gff_set) {
+    for (auto& gff : pre_gff_set) {
       pre_gff_file << gff.query_name << "\t"
                    << "."
                    << "\t"
@@ -1278,4 +1434,3 @@ omp_set_nested(1);
 
   return 0;
 }
-

@@ -25,7 +25,9 @@ static constexpr size_t STAGES = 3;
 static constexpr size_t SIZE_MULTIPLIER = 3;
 static constexpr uint32_t HASH_ID_SHIFT = 32;
 
-size_t calc_optimal_size(size_t entries, unsigned hash_num, double occupancy) {
+size_t
+calc_optimal_size(size_t entries, unsigned hash_num, double occupancy)
+{
   size_t approx = static_cast<size_t>(-static_cast<double>(entries) *
                                       static_cast<double>(hash_num) /
                                       std::log(1.0 - occupancy));
@@ -33,12 +35,13 @@ size_t calc_optimal_size(size_t entries, unsigned hash_num, double occupancy) {
 }
 
 btllib::MIBloomFilter<uint64_t>
-make_small_mibf(const std::string &seq, size_t hash_num, size_t kmer_size) {
+make_small_mibf(const std::string& seq, size_t hash_num, size_t kmer_size)
+{
   size_t filter_size =
-      std::max(seq.size() * SIZE_MULTIPLIER, MIN_TARGETTED_MIBF_SIZE);
+    std::max(seq.size() * SIZE_MULTIPLIER, MIN_TARGETTED_MIBF_SIZE);
   btllib::MIBloomFilter<uint64_t> mi_bf(
-      calc_optimal_size(filter_size, hash_num, TARGET_FALSE_POSITIVE_RATE),
-      hash_num);
+    calc_optimal_size(filter_size, hash_num, TARGET_FALSE_POSITIVE_RATE),
+    hash_num);
 
   for (size_t stage = 0; stage < STAGES; ++stage) {
     btllib::AAHash itr(seq, hash_num, kmer_size, 1);
@@ -48,7 +51,7 @@ make_small_mibf(const std::string &seq, size_t hash_num, size_t kmer_size) {
 
     while (itr.roll() && itr2.roll() && itr3.roll()) {
       uint64_t new_ID =
-          (static_cast<uint64_t>(miBf_ID) << HASH_ID_SHIFT) | itr.get_pos();
+        (static_cast<uint64_t>(miBf_ID) << HASH_ID_SHIFT) | itr.get_pos();
 
       if (stage == 0) {
         mi_bf.insert_bv(itr.hashes());
@@ -75,51 +78,53 @@ make_small_mibf(const std::string &seq, size_t hash_num, size_t kmer_size) {
   return mi_bf;
 }
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char* argv[])
+{
   argparse::ArgumentParser program("make_mibf");
 
   program.add_argument("--help")
-      .help("Display this help message")
-      .default_value(false)
-      .implicit_value(true);
+    .help("Display this help message")
+    .default_value(false)
+    .implicit_value(true);
 
   program.add_argument("-o", "--output")
-      .help("Output prefix")
-      .default_value(std::string("_"));
+    .help("Output prefix")
+    .default_value(std::string("_"));
 
   program.add_argument("-r", "--reference").help("Reference path").required();
 
   program.add_argument("-t", "--threads")
-      .help("Number of threads to use")
-      .default_value(size_t(1))
-      .scan<'u', size_t>();
+    .help("Number of threads to use")
+    .default_value(size_t(1))
+    .scan<'u', size_t>();
 
   program.add_argument("-h", "--hash")
-      .help("Number of hash functions")
-      .default_value(size_t(9))
-      .scan<'u', size_t>();
+    .help("Number of hash functions")
+    .default_value(size_t(9))
+    .scan<'u', size_t>();
 
   program.add_argument("-k", "--kmer")
-      .help("K-mer size")
-      .default_value(size_t(9))
-      .scan<'u', size_t>();
+    .help("K-mer size")
+    .default_value(size_t(9))
+    .scan<'u', size_t>();
 
   program.add_argument("-v", "--verbose")
-      .help("Verbose output")
-      .default_value(false)
-      .implicit_value(true);
+    .help("Verbose output")
+    .default_value(false)
+    .implicit_value(true);
 
   program.add_argument("-rks", "--rescue_kmer")
-      .help("Rescue k-mer size")
-      .default_value(size_t(4))
-      .scan<'u', size_t>();
+    .help("Rescue k-mer size")
+    .default_value(size_t(4))
+    .scan<'u', size_t>();
 
   program.add_argument("--version")
-      .help("Display version information")
-      .default_value(false)
-      .implicit_value(true);
+    .help("Display version information")
+    .default_value(false)
+    .implicit_value(true);
 
-  bool help_flag = std::any_of(argv, argv + argc, [](const char *arg) {
+  bool help_flag = std::any_of(argv, argv + argc, [](const char* arg) {
     return std::string(arg) == "--help";
   });
 
@@ -130,7 +135,7 @@ int main(int argc, char *argv[]) {
 
   try {
     program.parse_args(argc, argv);
-  } catch (const std::exception &err) {
+  } catch (const std::exception& err) {
     std::cerr << err.what() << std::endl;
     std::cerr << program;
     return 1;
@@ -151,8 +156,8 @@ int main(int argc, char *argv[]) {
 
   if (reference_path.empty()) {
     std::cerr
-        << "Reference path is required. Use -h or --help for more information."
-        << std::endl;
+      << "Reference path is required. Use -h or --help for more information."
+      << std::endl;
     return 1;
   }
 
@@ -178,30 +183,31 @@ int main(int argc, char *argv[]) {
   size_t genome_size = 0;
   btllib::SeqReader ref_reader(reference_path,
                                btllib::SeqReader::Flag::LONG_MODE);
-  for (const auto &record : ref_reader) {
+  for (const auto& record : ref_reader) {
     genome_size += record.seq.size();
   }
 
   btllib::MIBloomFilter<uint64_t> mi_bf(
-      calc_optimal_size(
-          std::max<size_t>(genome_size * SIZE_MULTIPLIER, MIN_MAIN_MIBF_SIZE),
-          hash_num, TARGET_FALSE_POSITIVE_RATE),
-      hash_num);
+    calc_optimal_size(
+      std::max<size_t>(genome_size * SIZE_MULTIPLIER, MIN_MAIN_MIBF_SIZE),
+      hash_num,
+      TARGET_FALSE_POSITIVE_RATE),
+    hash_num);
 
   if (verbose_flag) {
     std::cerr << "Creating seq_id to ID table" << std::endl;
   }
 
   std::unordered_map<uint32_t, std::pair<std::string, size_t>>
-      miBf_ID_to_seq_ID_and_len;
+    miBf_ID_to_seq_ID_and_len;
   std::unordered_map<uint32_t, std::string> miBf_ID_to_seq;
   {
     uint32_t miBf_ID = 1;
     btllib::SeqReader reader(reference_path,
                              btllib::SeqReader::Flag::LONG_MODE);
-    for (const auto &record : reader) {
+    for (const auto& record : reader) {
       seq_ID_to_miBf_ID[record.id] = miBf_ID;
-      miBf_ID_to_seq_ID_and_len[miBf_ID] = {record.id, record.seq.size()};
+      miBf_ID_to_seq_ID_and_len[miBf_ID] = { record.id, record.seq.size() };
       miBf_ID_to_seq[miBf_ID] = record.seq;
       ++miBf_ID;
     }
@@ -220,15 +226,15 @@ int main(int argc, char *argv[]) {
     btllib::SeqReader reader(reference_path,
                              btllib::SeqReader::Flag::LONG_MODE);
 #pragma omp parallel
-    for (const auto &record : reader) {
+    for (const auto& record : reader) {
       btllib::AAHash itr(record.seq, hash_num, kmer_size, 1);
       btllib::AAHash itr2(record.seq, hash_num, kmer_size, 2);
       btllib::AAHash itr3(record.seq, hash_num, kmer_size, 3);
-      const auto &miBf_ID = seq_ID_to_miBf_ID[record.id];
+      const auto& miBf_ID = seq_ID_to_miBf_ID[record.id];
 
       while (itr.roll() && itr2.roll() && itr3.roll()) {
         uint64_t new_ID =
-            (static_cast<uint64_t>(miBf_ID) << HASH_ID_SHIFT) | itr.get_pos();
+          (static_cast<uint64_t>(miBf_ID) << HASH_ID_SHIFT) | itr.get_pos();
 
         if (stage == 0) {
           mi_bf.insert_bv(itr.hashes());
@@ -260,9 +266,9 @@ int main(int argc, char *argv[]) {
 
   btllib::SeqReader reader(reference_path, btllib::SeqReader::Flag::LONG_MODE);
 #pragma omp parallel
-  for (const auto &record : reader) {
+  for (const auto& record : reader) {
     auto mi_bf_small = make_small_mibf(record.seq, hash_num, rescue_kmer_size);
-    const auto &miBf_ID = seq_ID_to_miBf_ID[record.id];
+    const auto& miBf_ID = seq_ID_to_miBf_ID[record.id];
     mi_bf_small.save(output_prefix + "." + std::to_string(miBf_ID) + ".mibf");
   }
 
