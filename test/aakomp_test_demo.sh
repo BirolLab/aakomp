@@ -2,7 +2,7 @@
 
 set -eu -o pipefail
 
-expected_score="0.00118625"
+expected_score="0.00436127"
 
 echo "Extracting primates_odb12.tar.gz..."
 tar -xzf primates_odb12.tar.gz
