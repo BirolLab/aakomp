@@ -200,9 +200,6 @@ int main(int argc, char *argv[]) {
     btllib::SeqReader reader(reference_path,
                              btllib::SeqReader::Flag::LONG_MODE);
     for (const auto &record : reader) {
-      if (record.seq.size() < (size_t)kmer_size + 5) {
-        continue;
-      }
       seq_ID_to_miBf_ID[record.id] = miBf_ID;
       miBf_ID_to_seq_ID_and_len[miBf_ID] = {record.id, record.seq.size()};
       miBf_ID_to_seq[miBf_ID] = record.seq;
@@ -224,9 +221,6 @@ int main(int argc, char *argv[]) {
                              btllib::SeqReader::Flag::LONG_MODE);
 #pragma omp parallel
     for (const auto &record : reader) {
-      if (record.seq.size() < (size_t)kmer_size + 5) {
-        continue;
-      }
       btllib::AAHash itr(record.seq, hash_num, kmer_size, 1);
       btllib::AAHash itr2(record.seq, hash_num, kmer_size, 2);
       btllib::AAHash itr3(record.seq, hash_num, kmer_size, 3);
@@ -267,11 +261,6 @@ int main(int argc, char *argv[]) {
   btllib::SeqReader reader(reference_path, btllib::SeqReader::Flag::LONG_MODE);
 #pragma omp parallel
   for (const auto &record : reader) {
-    if (record.seq.size() < (size_t)kmer_size + 5) {
-      std::cerr << "Skipping sequence: " << record.id
-                << " due to length: " << record.seq.size() << std::endl;
-      continue;
-    }
     auto mi_bf_small = make_small_mibf(record.seq, hash_num, rescue_kmer_size);
     const auto &miBf_ID = seq_ID_to_miBf_ID[record.id];
     mi_bf_small.save(output_prefix + "." + std::to_string(miBf_ID) + ".mibf");
