@@ -14,7 +14,7 @@
 #include <unordered_set>
 #include <vector>
 
-// Third-party libraries
+
 #include <Sequence/Translate.hpp>
 #include <argparse/argparse.hpp>
 #include <boost/math/distributions/empirical_cumulative_distribution_function.hpp>
@@ -212,7 +212,7 @@ void process_hashes(
     id_set.insert(new_id_set.begin(), new_id_set.end());
 
   } 
-  // determine saturation
+
   bool saturated = true;
   for (const auto &id_pos : temp_ID_pos) {
     if (id_pos < mi_bf.MASK) {
@@ -245,12 +245,10 @@ std::vector<std::string> sixframe_translate(const std::string &dna) {
 
   const std::string rev_dna = btllib::get_reverse_complement(dna);
 
-  // Forward frames
   for (size_t frame = 0; frame < FRAMES; ++frame) {
     protein.push_back(Sequence::Translate(dna.begin() + frame, dna.end()));
   }
 
-  // Reverse frames
   for (size_t frame = 0; frame < FRAMES; ++frame) {
     protein.push_back(
         Sequence::Translate(rev_dna.begin() + frame, rev_dna.end()));
@@ -599,7 +597,6 @@ bool exist1 = false, exist2 = false, exist3 = false;
 
 std::vector<uint64_t> chosen_temp_ID_pos;
 
-// Level 1
 if (mi_bf.bv_contains(aahash.hashes())) {
   const auto &temp_ID_pos = mi_bf.get_id(aahash.hashes());
   exist1 = true;
@@ -612,11 +609,10 @@ if (mi_bf.bv_contains(aahash.hashes())) {
     }
   }
   if (!has_prio1) {
-    chosen_temp_ID_pos = temp_ID_pos;  // fallback if no prio match
+    chosen_temp_ID_pos = temp_ID_pos;
   }
 }
 
-// Level 2
 if (!has_prio1 && mi_bf.bv_contains(aahash2.hashes())) {
   const auto &temp_ID_pos = mi_bf.get_id(aahash2.hashes());
   exist2 = true;
@@ -629,11 +625,10 @@ if (!has_prio1 && mi_bf.bv_contains(aahash2.hashes())) {
     }
   }
   if (!has_prio2 && !exist1) {
-    chosen_temp_ID_pos = temp_ID_pos;  // use level 2 if level 1 didn't exist
+    chosen_temp_ID_pos = temp_ID_pos;
   }
 }
 
-// Level 3
 if (!has_prio1 && !has_prio2 && mi_bf.bv_contains(aahash3.hashes())) {
   const auto &temp_ID_pos = mi_bf.get_id(aahash3.hashes());
   exist3 = true;
@@ -646,7 +641,7 @@ if (!has_prio1 && !has_prio2 && mi_bf.bv_contains(aahash3.hashes())) {
     }
   }
   if (!has_prio3 && !exist1 && !exist2) {
-    chosen_temp_ID_pos = temp_ID_pos;  // fallback to level 3
+    chosen_temp_ID_pos = temp_ID_pos;
   }
 }
 if (has_prio1 || has_prio2 || has_prio3 || exist1 || exist2 || exist3) {
@@ -673,9 +668,7 @@ if (has_prio1 || has_prio2 || has_prio3 || exist1 || exist2 || exist3) {
         std::cerr <<  "seq_id seq_pos: " << seq_pos << std::endl;
         std::cerr <<  "seq_id start: " << *ID_pos_set.second.begin() << std::endl;
         std::cerr <<  "seq_id end: " << *ID_pos_set.second.rbegin() << std::endl;
-        std::cerr << "------------------" << std::endl;
-
-        
+        std::cerr << "------------------" << std::endl;        
       }
 
         #pragma omp critical
@@ -1161,7 +1154,6 @@ int main(int argc, char *argv[]) {
   }
 
  if (use_nested_parallelism) {
-  // No nested parallelism: use all threads on record loop
 #pragma omp parallel num_threads(threads)
   for (const auto record : reader) {
     std::vector<std::string> sixframed_xlated_proteins =
@@ -1202,7 +1194,6 @@ int main(int argc, char *argv[]) {
     }
   }
 } else {
-  // Nested parallelism: outer on record, inner on ori
 omp_set_nested(1);
 #pragma omp parallel num_threads(threads / 2)
   for (const auto record : reader) {
@@ -1267,7 +1258,6 @@ omp_set_nested(1);
   std::cout << "aaKomp score for " << input_file << " is: " << result
             << std::endl;
 
-  // write result to text file
   std::string result_file = output_prefix + "_score.txt";
   std::ofstream result_out(result_file);
   result_out << result << std::endl;
@@ -1288,3 +1278,4 @@ omp_set_nested(1);
 
   return 0;
 }
+
