@@ -1,4 +1,4 @@
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/bcgsc/aakomp)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/BirolLab/aakomp)
 
 # aaKomp
 
@@ -21,7 +21,7 @@ Under construction
 ### Clone from GitHub
 
 ```bash
-git clone https://github.com/bcgsc/aakomp.git
+git clone https://github.com/BirolLab/aakomp.git
 cd aakomp
 meson --prefix /path/to/install build
 cd build
@@ -40,7 +40,7 @@ ninja install
 - [tcmalloc](https://google.github.io/tcmalloc/quickstart.html)
 - [sdsl-lite](https://github.com/simongog/sdsl-lite)
 - [libdivsufsort](https://github.com/y-256/libdivsufsort)
-- [btllib](https://github.com/bcgsc/btllib)
+- [btllib](https://github.com/BirolLab/btllib)
 - [libsequence](https://github.com/molpopgen/libsequence)
 - [gperftools](https://github.com/gperftools/gperftools)
 - [boost-cpp](https://www.boost.org/)
