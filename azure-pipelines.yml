@@ -62,7 +62,7 @@ jobs:
         displayName: Create Anaconda environment
       - script: |
           source activate aakomp_CI
-          conda install --yes -c conda-forge mamba python=3.9
+          conda install --yes -c conda-forge mamba
           mamba install --yes -c conda-forge -c bioconda aakomp
         displayName: Install dependencies
       - script: |
