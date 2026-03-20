@@ -1,4 +1,5 @@
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/BirolLab/aakomp)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/BirolLab/aakomp) [![install with bioconda](https://img.shields.io/badge/install%20with-bioconda-brightgreen.svg?style=flat)](http://bioconda.github.io/recipes/aakomp/README.html)
+
 
 # aaKomp
 
