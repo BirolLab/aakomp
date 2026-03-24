@@ -43,6 +43,40 @@ jobs:
         displayName: Test run for aaKomp
 
   - job:
+    displayName: ubuntu-latest-conda
+    pool:
+      vmImage: "ubuntu-latest"
+
+    steps:
+      - script: |
+          mkdir -p ~/miniforge3
+          curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh  -o ~/miniforge3/miniforge.sh
+          bash ~/miniforge3/miniforge.sh -b -u -p ~/miniforge3
+          rm -rf  ~/miniforge3/miniforge.sh
+          ~/miniforge3/bin/conda init bash
+          ~/miniforge3/bin/conda init zsh
+          export CONDA=$(realpath ~/miniforge3/bin)
+          echo "##vso[task.prependpath]$CONDA"
+        displayName: Install conda
+      - script: conda create --yes --quiet --name aakomp_CI
+        displayName: Create Anaconda environment
+      - script: |
+          source activate aakomp_CI
+          conda install --yes -c conda-forge mamba
+          mamba install --yes -c conda-forge -c bioconda aakomp
+        displayName: Install dependencies
+      - script: |
+          sudo apt-get update
+          sudo apt-get install -y aria2
+          wget -c -P test https://zenodo.org/records/15421506/files/primates_odb12.tar.gz
+        displayName: Download primates_odb12.tar.gz
+      - script: |
+          source activate aakomp_CI
+          cd test
+          ./aakomp_test_demo.sh
+        displayName: Test run for aaKomp
+
+  - job:
     displayName: mac-latest
     pool:
       vmImage: 'macOS-latest'

@@ -14,7 +14,11 @@ Assess draft genome completeness using a fast, alignment-free, k-mer hash-based 
 
 ---
 ## Installing from Conda (Preferred method)
-Under construction
+```bash
+conda create -n aakomp
+conda activate aakomp
+conda install -c bioconda aakomp
+```
 
 
 ## Installing from Source
