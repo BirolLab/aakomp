@@ -77,9 +77,15 @@ struct GFFEntryComparator
   {
     if (lhs.query_name != rhs.query_name)
       return lhs.query_name < rhs.query_name;
+    if (lhs.hit_name != rhs.hit_name)
+      return lhs.hit_name < rhs.hit_name;
+    if (lhs.strand != rhs.strand)
+      return lhs.strand < rhs.strand;
     if (lhs.hit_pos_start != rhs.hit_pos_start)
       return lhs.hit_pos_start < rhs.hit_pos_start;
-    return lhs.hit_name < rhs.hit_name;
+    if (lhs.hit_pos_end != rhs.hit_pos_end)
+      return lhs.hit_pos_end < rhs.hit_pos_end;
+    return lhs.score < rhs.score;
   }
 };
 
@@ -317,10 +323,19 @@ fill_in_gaps(
     size_t next_start = std::get<0>(start_end_pos_vec[i + 1]);
     if (next_start > curr_end + kmer_size) {
       gap_vec.emplace_back(curr_end, next_start);
+    } else {
+      gap_vec.emplace_back(0, 0); // dummy
     }
   }
 
-  if (gap_vec.empty())
+  bool has_valid_gap = false;
+  for (const auto& g : gap_vec) {
+    if (g != std::make_tuple(0ul, 0ul)) {
+      has_valid_gap = true;
+      break;
+    }
+  }
+  if (!has_valid_gap)
     return;
 
   std::vector<std::tuple<size_t, size_t>> gap_in_tar_space_vec;
@@ -366,7 +381,8 @@ fill_in_gaps(
       sixframed_xlated_proteins[frame + ori * FRAMES];
     for (size_t level = 1; level <= 3; ++level) {
       for (size_t g = 0; g < gap_vec.size(); ++g) {
-        if (gap_in_tar_space_vec[g] == std::make_tuple(0ul, 0ul))
+        if (gap_in_tar_space_vec[g] == std::make_tuple(0ul, 0ul) ||
+            gap_vec[g] == std::make_tuple(0ul, 0ul))
           continue;
 
         size_t gap_start = std::get<0>(gap_vec[g]);
@@ -374,7 +390,7 @@ fill_in_gaps(
         const auto& index_set = gap_index_sets[g];
 
         btllib::AAHash aahash(
-          protein, hash_num, rescue_kmer_size, level, gap_start - 1);
+          protein, hash_num, rescue_kmer_size, level, gap_start > 0 ? gap_start - 1 : 0);
         aahash.roll();
 
         while (aahash.get_pos() <= gap_end + 1) {
@@ -1242,12 +1258,17 @@ main(int argc, char* argv[])
   std::unordered_map<uint32_t, std::pair<std::string, size_t>>
     miBf_ID_to_seq_ID_and_len;
   std::unordered_map<uint32_t, std::string> miBf_ID_to_seq;
+  std::vector<std::pair<std::string, size_t>> skipped_records;
   {
     uint32_t miBf_ID = 1;
     btllib::SeqReader reader(reference_path,
                              btllib::SeqReader::Flag::LONG_MODE);
     for (const auto record : reader) {
       if (record.seq.size() < (size_t)kmer_size + 5) {
+        std::cerr << "Warning: Skipping sequence " << record.id
+                  << " due to short length: " << record.seq.size()
+                  << " (< " << (kmer_size + 5) << ")" << std::endl;
+        skipped_records.emplace_back(record.id, record.seq.size());
         continue;
       }
       seq_ID_to_miBf_ID[record.id] = miBf_ID;
@@ -1255,6 +1276,15 @@ main(int argc, char* argv[])
         std::make_pair(record.id, record.seq.size());
       miBf_ID_to_seq[miBf_ID] = record.seq;
       ++miBf_ID;
+    }
+  }
+
+  {
+    std::string skipped_file_path = output_prefix + "_skipped_sequences.txt";
+    std::ofstream skipped_out(skipped_file_path);
+    skipped_out << "# Sequence_ID\tLength\tThreshold\n";
+    for (const auto& item : skipped_records) {
+      skipped_out << item.first << "\t" << item.second << "\t" << (kmer_size + 5) << "\n";
     }
   }
   if (verbose_flag) {
