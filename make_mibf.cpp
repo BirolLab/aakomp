@@ -49,7 +49,9 @@ make_small_mibf(const std::string& seq, size_t hash_num, size_t kmer_size)
     btllib::AAHash itr3(seq, hash_num, kmer_size, 3);
     size_t miBf_ID = 1;
 
+    bool inserted = false;
     while (itr.roll() && itr2.roll() && itr3.roll()) {
+      inserted = true;
       uint64_t new_ID =
         (static_cast<uint64_t>(miBf_ID) << HASH_ID_SHIFT) | itr.get_pos();
 
@@ -65,6 +67,17 @@ make_small_mibf(const std::string& seq, size_t hash_num, size_t kmer_size)
         mi_bf.insert_saturation(itr.hashes(), new_ID);
         mi_bf.insert_saturation(itr2.hashes(), new_ID);
         mi_bf.insert_saturation(itr3.hashes(), new_ID);
+      }
+    }
+
+    if (!inserted) {
+      std::vector<uint64_t> dummy_hashes(hash_num, 1);
+      if (stage == 0) {
+        mi_bf.insert_bv(dummy_hashes);
+      } else if (stage == 1) {
+        mi_bf.insert_id(dummy_hashes, 1);
+      } else {
+        mi_bf.insert_saturation(dummy_hashes, 1);
       }
     }
 
@@ -184,6 +197,9 @@ main(int argc, char* argv[])
   btllib::SeqReader ref_reader(reference_path,
                                btllib::SeqReader::Flag::LONG_MODE);
   for (const auto& record : ref_reader) {
+    if (record.seq.size() < (size_t)kmer_size + 5) {
+      continue;
+    }
     genome_size += record.seq.size();
   }
 
@@ -201,15 +217,34 @@ main(int argc, char* argv[])
   std::unordered_map<uint32_t, std::pair<std::string, size_t>>
     miBf_ID_to_seq_ID_and_len;
   std::unordered_map<uint32_t, std::string> miBf_ID_to_seq;
+  std::vector<std::pair<std::string, size_t>> skipped_records;
+  uint32_t total_records = 0;
   {
     uint32_t miBf_ID = 1;
     btllib::SeqReader reader(reference_path,
                              btllib::SeqReader::Flag::LONG_MODE);
     for (const auto& record : reader) {
+      if (record.seq.size() < (size_t)kmer_size + 5) {
+        std::cerr << "Warning: Skipping sequence " << record.id
+                  << " due to short length: " << record.seq.size()
+                  << " (< " << (kmer_size + 5) << ")" << std::endl;
+        skipped_records.emplace_back(record.id, record.seq.size());
+        continue;
+      }
       seq_ID_to_miBf_ID[record.id] = miBf_ID;
       miBf_ID_to_seq_ID_and_len[miBf_ID] = { record.id, record.seq.size() };
       miBf_ID_to_seq[miBf_ID] = record.seq;
       ++miBf_ID;
+    }
+    total_records = miBf_ID - 1;
+  }
+
+  {
+    std::string skipped_file_path = output_prefix + "_skipped_sequences.txt";
+    std::ofstream skipped_out(skipped_file_path);
+    skipped_out << "# Sequence_ID\tLength\tThreshold\n";
+    for (const auto& item : skipped_records) {
+      skipped_out << item.first << "\t" << item.second << "\t" << (kmer_size + 5) << "\n";
     }
   }
 
@@ -227,6 +262,9 @@ main(int argc, char* argv[])
                              btllib::SeqReader::Flag::LONG_MODE);
 #pragma omp parallel
     for (const auto& record : reader) {
+      if (record.seq.size() < (size_t)kmer_size + 5) {
+        continue;
+      }
       btllib::AAHash itr(record.seq, hash_num, kmer_size, 1);
       btllib::AAHash itr2(record.seq, hash_num, kmer_size, 2);
       btllib::AAHash itr3(record.seq, hash_num, kmer_size, 3);
@@ -264,12 +302,10 @@ main(int argc, char* argv[])
             << omp_get_wtime() - sTime << std::endl;
   mi_bf.save(output_prefix + ".mibf");
 
-  btllib::SeqReader reader(reference_path, btllib::SeqReader::Flag::LONG_MODE);
-#pragma omp parallel
-  for (const auto& record : reader) {
-    auto mi_bf_small = make_small_mibf(record.seq, hash_num, rescue_kmer_size);
-    const auto& miBf_ID = seq_ID_to_miBf_ID[record.id];
-    mi_bf_small.save(output_prefix + "." + std::to_string(miBf_ID) + ".mibf");
+#pragma omp parallel for schedule(dynamic)
+  for (uint32_t id = 1; id <= total_records; ++id) {
+    auto mi_bf_small = make_small_mibf(miBf_ID_to_seq.at(id), hash_num, rescue_kmer_size);
+    mi_bf_small.save(output_prefix + "." + std::to_string(id) + ".mibf");
   }
 
   std::cerr << "finished making small miBf" << std::endl;

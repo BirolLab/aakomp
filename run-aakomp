@@ -119,7 +119,8 @@ def run_make_mibf(args: argparse.Namespace) -> None:
     full_db_path = os.path.join(args.db_dir, base_name)
     cmd = [
         "make_mibf", "-r", ref_name, "-o", base_name,
-        "-k", str(args.kmer), "-h", str(args.hash), "-t", str(args.threads)
+        "-k", str(args.kmer), "-h", str(args.hash), "-t", str(args.threads),
+        "-rks", str(args.rescue_kmer)
     ]
     if args.verbose:
         cmd.append("-v")
@@ -212,6 +213,17 @@ def main():
     parser.add_argument("--odb-version", default="12", help="BUSCO odb version to use (default: 12)")
     parser.add_argument("--list-lineages", action="store_true", help="List available BUSCO lineages")
     parser.add_argument("--visualise", action="store_true", help="Visualise the cumulative distribution function")
+    parser.add_argument(
+        "--build-database", "--build-db",
+        action="store_true",
+        dest="build_database",
+        help="Build the miBF database for --reference or --lineage and exit without running aaKomp",
+    )
+    parser.add_argument(
+        "-f", "--force",
+        action="store_true",
+        help="Force rebuilding the miBF database even if it already exists",
+    )
     parser.add_argument("--version", action="version", version="v1.0.0")
 
     args = parser.parse_args()
@@ -233,10 +245,14 @@ def main():
         parser.error("--reference or --lineage must be provided.")
     if args.reference and args.lineage:
         parser.error("Cannot provide both --reference and --lineage.")
-    if not args.input:
-        parser.error("Input file is required.")
-    elif not os.path.isfile(args.input):
-        parser.error(f"Input file '{args.input}' does not exist.")
+    if args.reference and not os.path.isfile(args.reference):
+        parser.error(f"Reference file '{args.reference}' does not exist.")
+
+    if not args.build_database:
+        if not args.input:
+            parser.error("Input file is required (unless --build-database is specified).")
+        elif not os.path.isfile(args.input):
+            parser.error(f"Input file '{args.input}' does not exist.")
 
     log("Arguments:")
     for arg in vars(args):
@@ -257,8 +273,17 @@ def main():
     base_name = os.path.splitext(os.path.basename(args.reference))[0]
     args.mibf_path = os.path.join(args.db_dir, f"{base_name}/", f"{base_name}.mibf")
 
-    if not is_database_built(args.mibf_path):
+    db_already_built = is_database_built(args.mibf_path)
+    if not db_already_built or args.force:
+        if args.force and db_already_built:
+            log(f"Force rebuilding database at: {args.mibf_path}")
         run_make_mibf(args)
+    elif args.build_database:
+        log(f"Database already exists at: {args.mibf_path}. Use --force to rebuild.")
+
+    if args.build_database:
+        log("Database creation complete. Exiting (--build-database specified).")
+        sys.exit(0)
 
     run_aakomp(args)
 
