@@ -146,17 +146,21 @@ main(int argc, char* argv[])
     return 0;
   }
 
+  bool version_flag = std::any_of(argv, argv + argc, [](const char* arg) {
+    return std::string(arg) == "--version";
+  });
+
+  if (version_flag) {
+    std::cout << "make_mibf version 1.1.0" << std::endl;
+    return 0;
+  }
+
   try {
     program.parse_args(argc, argv);
   } catch (const std::exception& err) {
     std::cerr << err.what() << std::endl;
     std::cerr << program;
     return 1;
-  }
-
-  if (program.get<bool>("--version")) {
-    std::cout << "make_mibf version 1.0.0" << std::endl;
-    return 0;
   }
 
   bool verbose_flag = program.get<bool>("--verbose");
